@@ -7,7 +7,7 @@ GitHub: https://github.com/Koczi11/Serwis_Samochodow
 
 ## Opis zadania
 
-W pewnej miejscowości znajduje się serwis samochodów dostępny w godzinach $\text{od } T_p \text{ do } T_k$. Serwis obsługuje tylko samochody marek: **A, E, I, O, U i Y**. Pozostałe marki – z zakresu od A do Z (łącznie 26 różnych marek) nie są obsługiwane. W serwisie znajduje się **8 stanowisk** do naprawy pojazdów, przy czym na stanowiskach **1-7** możliwa jest naprawa marek **A, E, I, O, U i Y**, natomiast na stanowisku **8** możliwa jest naprawa tylko marek **U i Y**.
+W pewnej miejscowości znajduje się serwis samochodów dostępny w godzinach $\text{od } T_p \text{ do } T_k$. Serwis obsługuje tylko samochody marek: A, E, I, O, U i Y. Pozostałe marki – z zakresu od A do Z (łącznie 26 różnych marek) nie są obsługiwane. W serwisie znajduje się 8 stanowisk do naprawy pojazdów, przy czym na stanowiskach 1-7 możliwa jest naprawa marek A, E, I, O, U i Y, natomiast na stanowisku 8 możliwa jest naprawa tylko marek U i Y.
 
 ## Opis działania serwisu
 
@@ -49,11 +49,11 @@ Oczekujemy:
 - Brak zakleszczeń.
 
 #### 2. Zmiana liczby stanowisk rejestracji klientów
-Generujemy napływ 15 kierowców w krótkim czasie. Początkowo działa 1 stanowisku. Po pojawieniu się K1 klientów otwiera się 2 stanowisko, K2 klientów otwiera się 3 stanowisko. Następnie liczba kierowców spada, co powinno spowodować zamykanie stanowisk.
+Generujemy napływ 15 kierowców w krótkim czasie. Początkowo działa 1 stanowisko. Po pojawieniu się K1 klientów otwiera się 2 stanowisko, K2 klientów otwiera 3 stanowisko. Następnie liczba kierowców spada, co powinno spowodować zamykanie stanowisk.
 
 Oczekujemy:
 - System dynamicznie otwiera stanowisko 2 i 3 zgodnie z progami.
-- System ponownie zamyka stanowiska 3, 2, 1 zgodnie z progami.
+- System ponownie zamyka stanowiska 3, 2 zgodnie z progami.
 - Obsługa klientów odbywa się równolegle.
 - Brak zakleszczeń.
 

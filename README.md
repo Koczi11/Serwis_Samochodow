@@ -3,7 +3,7 @@
 Imię: Kacper
 Nazwisko: Koczera
 Numer Albumu: 155191
-GitHub: 
+GitHub: https://github.com/Koczi11/Serwis_Samochodow
 
 ## Opis zadania
 
@@ -55,7 +55,7 @@ Oczekujemy:
 - System dynamicznie otwiera stanowisko 2 i 3 zgodnie z progami.
 - System ponownie zamyka stanowiska 3, 2, 1 zgodnie z progami.
 - Obsługa klientów odbywa się równolegle.
-- Brak zakleszczeń
+- Brak zakleszczeń.
 
 #### 3. Dodatkowe usterki podczas diagnostyki i akceptacja zakresu
 Symulujemy przyjazd 10 samochodów różnych marek obsługiwanych. 20% - wykryte dodatkowe usterki, wśród nich 20% kierowców odmawia rozszerzenia zakresu. Mechanik zgłasza nowe usterki do pracownika serwisu, który kontaktuje się z kierowcą.
@@ -65,7 +65,7 @@ Oczekujemy:
 - Pracownik serwisu poprawnie prosi o zgodę kierowcę.
 - Kierowca, zgodnie z prawdopodobieństwem, podejmuje decyzję.
 - Czas naprawy zmienia się tylko jeśli kierowca zaakceptuje dodatkową usterkę.
--  Brak zakleszczeń
+-  Brak zakleszczeń.
 
 #### 4. Sygnały kierownika
 Uruchomionych jest 8 stanowisk i 12 samochodów do naprawy. Wysyłamy sygnał2, aby przyśpieszyć prace stanowiska 3. Po chwili ponownie wysyłamy sygnał2, który powinien zostać zignorowany. Za pomocą sygnału3 - powrót stanowiska 3 do normalnej szybkości. Sygnałem1 zamykamy stanowisko 5 po zakończeniu bieżącej naprawy. Sygnał4 - pożar, natychmiastowe przerwanie pracy całego serwisu.

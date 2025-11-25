@@ -1,9 +1,9 @@
 # Serwis samochodów (Temat 6)
 
-Imię: Kacper
-Nazwisko: Koczera
-Numer Albumu: 155191
-GitHub: https://github.com/Koczi11/Serwis_Samochodow
+**Imię:** Kacper
+**Nazwisko:** Koczera
+**Numer Albumu:** 155191
+**GitHub:** https://github.com/Koczi11/Serwis_Samochodow
 
 ## Opis zadania
 

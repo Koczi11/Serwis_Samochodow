@@ -14,6 +14,11 @@
 #define PROC_KASJER 4
 #define PROC_KIEROWNIK 5
 
+//Typy komunikatów
+#define MSG_REJESTRACJA 1
+#define MSG_WYCENA 2
+#define MSG_DECYZJA 3
+
 //Opis samochodu 
 typedef struct 
 {
@@ -57,5 +62,7 @@ extern SharedData *shared;
 
 void init_ipc();
 void cleanup_ipc();
+
+int marka_obslugiwana(const char *m);
 
 #endif

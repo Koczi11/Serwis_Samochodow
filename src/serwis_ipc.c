@@ -106,3 +106,16 @@ void cleanup_ipc()
 
     printf("[CLEANUP] IPC zwolnione poprawnie\n");
 }
+
+//Sprawdza czy marka jest obsługiwana
+int marka_obslugiwana(const char *m)
+{
+    const char *dozwolone[] = {"A", "E", "I", "O", "U", "Y",};
+    for (int i = 0; i < 6; i++)
+    {
+        if (strcmp(m, dozwolone[i]) == 0)
+            return 1;
+    }
+
+    return 0;
+}

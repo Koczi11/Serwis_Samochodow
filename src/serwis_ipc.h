@@ -18,8 +18,14 @@
 #define MSG_REJESTRACJA 1
 #define MSG_WYCENA 2
 #define MSG_DECYZJA 3
+#define MSG_NAPRAWA 10
+#define MSG_KONIEC_NAPRAWY 11
 
-//Opis samochodu 
+//Semafory
+#define SEM_SHARED 0        //Ochrona pamięci współdzielonej
+#define SEM_STANOWISKA 1    //Synchronizacja stanowisk
+
+//Opis samochodu
 typedef struct 
 {
     pid_t pid_kierowcy;
@@ -53,16 +59,19 @@ typedef struct
     Samochod samochod;
 } Msg;
 
-
-
+//Identyfikatory IPC
 extern int shm_id;
 extern int sem_id;
 extern int msg_id;
 extern SharedData *shared;
 
+//Funkcje
 void init_ipc();
 void cleanup_ipc();
 
 int marka_obslugiwana(const char *m);
+
+void sem_lock(int num);
+void sem_unlock(int num);
 
 #endif

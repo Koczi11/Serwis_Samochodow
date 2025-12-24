@@ -21,6 +21,15 @@ int main()
         execl("./pracownik_serwisu", "pracownik_serwisu", NULL);
     }
 
+    //Mechanicy
+    for (int i = 0; i < MAX_STANOWISK; i++)
+    {
+        if (fork() == 0)
+        {
+            execl("./mechanik", "mechanik", NULL);
+        }
+    }
+
     sleep(1);
 
     //Kierowcy

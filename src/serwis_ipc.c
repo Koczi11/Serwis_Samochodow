@@ -13,10 +13,6 @@ int sem_id = -1;
 int msg_id = -1;
 SharedData *shared = NULL;
 
-//Operacje semaforowe
-static struct sembuf sem_lock = {0, -1, 0};
-static struct sembuf sem_unlock = {0, 1, 0};
-
 //Inicjalizacja IPC
 void init_ipc()
 {
@@ -57,16 +53,22 @@ void init_ipc()
     }
 
     //Semafor
-    sem_id = semget(key_sem, 1, IPC_CREAT | 0600);
+    sem_id = semget(key_sem, 2, IPC_CREAT | 0600);
     if (sem_id == -1)
     {
         perror("semget failed");
         exit(1);
     }
 
-    if (semctl(sem_id, 0, SETVAL, 1) == -1)
+    if (semctl(sem_id, SEM_SHARED, SETVAL, 1) == -1)
     {
-        perror("semctl failed");
+        perror("semctl SEM_SHARED failed");
+        exit(1);
+    }
+
+    if (semctl(sem_id, SEM_STANOWISKA, SETVAL, 1) == -1)
+    {
+        perror("semctl SEM_STANOWISKA failed");
         exit(1);
     }
 
@@ -118,4 +120,17 @@ int marka_obslugiwana(const char *m)
     }
 
     return 0;
+}
+
+//Operacje semaforowe
+void sem_lock(int num)
+{
+    struct sembuf sb = {num, -1, 0};
+    semop(sem_id, &sb, 1);
+}
+
+void sem_unlock(int num)
+{
+    struct sembuf sb = {num, 1, 0};
+    semop(sem_id, &sb, 1);
 }

@@ -31,6 +31,9 @@ int main()
         if (msg.samochod.zaakceptowano)
         {
             printf("[PRACOWNIK SERWISU] Kierowca %d zaakceptował usługę\n", msg.samochod.pid_kierowcy);
+            
+            msg.mtype = MSG_NAPRAWA;
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
         }
         else
         {

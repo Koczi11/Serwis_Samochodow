@@ -43,5 +43,17 @@ int main()
 
     printf("[KIEROWCA %d] Decyzja: %s\n", getpid(), msg.samochod.zaakceptowano ? "Akceptuję" : "Odrzucam");
 
+    //Dodatkowa usterka
+    if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_PYTANIE, IPC_NOWAIT) != -1)
+    {
+        printf("[KIEROWCA %d] Pytanie o dodatkową usterkę: +%d PLN, +%d s\n", getpid(), msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+
+        msg.samochod.zaakceptowano = rand() % 2;
+        msg.mtype = MSG_ODPOWIEDZ;
+        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+        printf("[KIEROWCA %d] Decyzja dodatkowej usterki: %s\n", getpid(), msg.samochod.zaakceptowano ? "Akceptuję" : "Odrzucam");
+    }
+
     return 0;
 }

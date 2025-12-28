@@ -46,7 +46,35 @@ int main()
 
         printf("[MECHANIK %d] Naprawa auta %d na stanowisku %d\n", getpid(), msg.samochod.pid_kierowcy, s);
 
-        sleep(msg.samochod.czas_naprawy); 
+        int czas = msg.samochod.czas_naprawy;
+        
+        if (rand() % 5 == 0) //20% szans na dodatkową usterkę
+        {
+            printf("[MECHANIK %d] Dodatkowa usterka auta %d!\n", getpid(), msg.samochod.pid_kierowcy);
+
+            msg.samochod.dodatkowa_usterka = 1;
+            msg.samochod.dodatkowy_czas = 3 + rand() % 5;
+            msg.samochod.dodatkowy_koszt = 100 + rand() % 200;
+
+            msg.mtype = MSG_USTERKA;
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+            //Oczekiwanie na decyzję
+            msgrcv(msg_id, &msg, sizeof(Samochod), MSG_DECYZJA, 0);
+
+            if (msg.samochod.zaakceptowano)
+            {
+                printf("[MECHANIK %d] Kierowca %d zaakceptował dodatkową usterkę\n", getpid(), msg.samochod.pid_kierowcy);
+                czas += msg.samochod.dodatkowy_czas;
+            }
+            else
+            {
+                printf("[MECHANIK %d] Kierowca %d odrzucił dodatkową usterkę\n", getpid(), msg.samochod.pid_kierowcy);
+            }
+        }
+
+        //Symulacja naprawy
+        sleep(czas);
 
         //Zwolnienie stanowiska
         sem_lock(SEM_SHARED);

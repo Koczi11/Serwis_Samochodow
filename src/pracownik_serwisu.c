@@ -39,5 +39,22 @@ int main()
         {
             printf("[PRACOWNIK SERWISU] Kierowca %d odrzucił usługę\n", msg.samochod.pid_kierowcy);
         }
+
+        //Dodatkowa usterka od mechanika
+        if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_USTERKA, IPC_NOWAIT) != -1)
+        {
+            printf("[PRACOWNIK SERWISU] Dodatkowa usterka auta %d: +%d PLN, +%d s\n", msg.samochod.pid_kierowcy, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+
+            //Pytanie kierowcy
+            msg.mtype = MSG_PYTANIE;
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+            //Odbiór decyzji
+            msgrcv(msg_id, &msg, sizeof(Samochod), MSG_DECYZJA, 0);
+
+            //Przekazanie decyzji mechanikowi
+            msg.mtype = MSG_DECYZJA;
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+        }
     }
 }

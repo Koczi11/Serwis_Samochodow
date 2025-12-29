@@ -32,6 +32,12 @@ int main()
 
     sleep(1);
 
+    //Kierownik
+    if (fork() == 0)
+    {
+        execl("./kierownik", "kierownik", NULL);
+    }
+
     //Kierowcy
     for (int i = 0; i < 5; i++)
     {

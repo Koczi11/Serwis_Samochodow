@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 
 int znajdz_stanowisko()
 {
@@ -15,8 +16,39 @@ int znajdz_stanowisko()
     return -1;
 }
 
+//Globalne flagi
+volatile __sig_atomic_t przyspieszony = 0;
+volatile __sig_atomic_t zamknij_po = 0;
+
+//Obsługa sygnałów
+void sig_zamknij(int sig)
+{
+    zamknij_po = 1;
+}
+
+void sig_przyspiesz(int sig)
+{
+    przyspieszony = 1;
+}
+
+void sig_normalnie(int sig)
+{
+    przyspieszony = 0;
+}
+
+void sig_pozar(int sig)
+{
+    exit(0);
+}
+
 int main()
 {
+    signal(SIGUSR1, sig_zamknij);
+    signal(SIGUSR2, sig_przyspiesz);
+    signal(SIGCONT, sig_normalnie);
+    signal(SIGTERM, sig_pozar);
+
+
     Msg msg;
 
     printf("[MECHANIK %d] Gotowy do pracy\n", getpid());
@@ -74,7 +106,8 @@ int main()
         }
 
         //Symulacja naprawy
-        sleep(czas);
+        int t = przyspieszony ? czas / 2 : czas;
+        sleep(t);
 
         //Zwolnienie stanowiska
         sem_lock(SEM_SHARED);
@@ -84,6 +117,12 @@ int main()
 
         printf("[MECHANIK %d] Zakończono naprawę auta %d\n", getpid(), msg.samochod.pid_kierowcy);
 
+        if (zamknij_po)
+        {
+            printf("[MECHANIK %d] Stanowisko zamknięte\n", getpid());
+            exit(0);
+        }
+        
         //Informacja o zakończeniu naprawy
         msg.mtype = MSG_KONIEC_NAPRAWY;
         msgsnd(msg_id, &msg, sizeof(Samochod), 0);

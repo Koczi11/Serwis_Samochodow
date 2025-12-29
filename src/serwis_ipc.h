@@ -27,6 +27,9 @@
 #define MSG_ODPOWIEDZ 22
 #define MSG_DECYZJA 23
 
+#define MSG_KASA 30
+#define MSG_ZAPLATA 31
+
 //Semafory
 #define SEM_SHARED 0        //Ochrona pamięci współdzielonej
 #define SEM_STANOWISKA 1    //Synchronizacja stanowisk

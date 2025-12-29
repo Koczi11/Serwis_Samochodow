@@ -122,9 +122,13 @@ int main()
             printf("[MECHANIK %d] Stanowisko zamknięte\n", getpid());
             exit(0);
         }
-        
+
         //Informacja o zakończeniu naprawy
         msg.mtype = MSG_KONIEC_NAPRAWY;
+        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+        //Przekazanie do kasy
+        msg.mtype = MSG_KASA;
         msgsnd(msg_id, &msg, sizeof(Samochod), 0);
     }
 }

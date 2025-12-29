@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <time.h>
 
 int shm_id = -1;
 int sem_id = -1;
@@ -133,4 +135,22 @@ void sem_unlock(int num)
 {
     struct sembuf sb = {num, 1, 0};
     semop(sem_id, &sb, 1);
+}
+
+void zapisz_raport(const char *tekst)
+{
+    int fd = open("raport.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0)
+    {
+        perror("open raport.txt failed");
+        return;
+    }
+
+    time_t t = time(NULL);
+    char buf[256];
+
+    int len = snprintf(buf, sizeof(buf), "[%ld] %s\n", t, tekst);
+
+    write(fd, buf, len);
+    close(fd);
 }

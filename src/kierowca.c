@@ -55,5 +55,9 @@ int main()
         printf("[KIEROWCA %d] Decyzja dodatkowej usterki: %s\n", getpid(), msg.samochod.zaakceptowano ? "Akceptuję" : "Odrzucam");
     }
 
+    //Czekam na zakończenie płatności
+    msgrcv(msg_id, &msg, sizeof(Samochod), MSG_ZAPLATA, 0);
+    printf("[KIEROWCA %d] Zapłacono %d PLN, odbieram samochód\n", getpid(), msg.samochod.koszt);
+
     return 0;
 }

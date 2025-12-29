@@ -4,15 +4,17 @@
 #include <signal.h>
 #include <unistd.h>
 
-void handle_sigint(int sig)
+void handle_sigterm(int sig)
 {
-    printf("\n[MAIN] SIGINT - sprzątanie IPC\n");
+    printf("\n[MAIN] Zamknięcie serwisu\n");
     cleanup_ipc();
     exit(0);
 }
 
 int main()
 {
+    signal(SIGTERM, handle_sigterm);
+
     init_ipc();
 
     //Pracownik serwisu

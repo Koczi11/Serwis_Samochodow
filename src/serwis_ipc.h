@@ -17,7 +17,7 @@
 //Typy komunikatów
 #define MSG_REJESTRACJA 1
 #define MSG_WYCENA 2
-#define MSG_DECYZJA 3
+#define MSG_DECYZJA_USLUGI 3 
 
 #define MSG_NAPRAWA 10
 #define MSG_KONIEC_NAPRAWY 11
@@ -25,7 +25,7 @@
 #define MSG_USTERKA 20
 #define MSG_PYTANIE 21
 #define MSG_ODPOWIEDZ 22
-#define MSG_DECYZJA 23
+#define MSG_DECYZJA_DODATKOWA 23
 
 #define MSG_KASA 30
 #define MSG_ZAPLATA 31
@@ -62,6 +62,8 @@ typedef struct
     Stanowisko stanowiska[MAX_STANOWISK];
     int serwis_otwarty;
     int pozar;
+    int liczba_oczekujacych_klientow;
+    int aktywne_okienka_obslugi;
 } SharedData;
 
 //Komunikat w kolejce 

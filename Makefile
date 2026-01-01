@@ -1,28 +1,33 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -g
-LIBS = -lm
+CFLAGS = -Wall -Wextra -std=c11
 
 ALL = serwis pracownik_serwisu kierowca mechanik kierownik kasjer
 
 all: $(ALL)
 
-serwis: src/main.c src/serwis_ipc.c 
-	$(CC) $(CFLAGS) -o serwis src/main.c src/serwis_ipc.c
+serwis_ipc.o: src/serwis_ipc.c src/serwis_ipc.h
+	$(CC) $(CFLAGS) -c src/serwis_ipc.c -o serwis_ipc.o
 
-pracownik_serwisu: src/pracownik_serwisu.c src/serwis_ipc.c
-	$(CC) $(CFLAGS) -o pracownik_serwisu src/pracownik_serwisu.c src/serwis_ipc.c
-	
-kierowca: src/kierowca.c src/serwis_ipc.c 
-	$(CC) $(CFLAGS) -o kierowca src/kierowca.c src/serwis_ipc.c
+serwis: src/main.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o serwis src/main.c serwis_ipc.o
 
-mechanik: src/mechanik.c src/serwis_ipc.c 
-	$(CC) $(CFLAGS) -o mechanik src/mechanik.c src/serwis_ipc.c
+pracownik_serwisu: src/pracownik_serwisu.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o pracownik_serwisu src/pracownik_serwisu.c serwis_ipc.o
 
-kierownik: src/kierownik.c src/serwis_ipc.c 
-	$(CC) $(CFLAGS) -o kierownik src/kierownik.c src/serwis_ipc.c
+kierowca: src/kierowca.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o kierowca src/kierowca.c serwis_ipc.o
 
-kasjer: src/kasjer.c src/serwis_ipc.c 
-	$(CC) $(CFLAGS) -o kasjer src/kasjer.c src/serwis_ipc.c
+mechanik: src/mechanik.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o mechanik src/mechanik.c serwis_ipc.o
+
+kierownik: src/kierownik.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o kierownik src/kierownik.c serwis_ipc.o
+
+kasjer: src/kasjer.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -o kasjer src/kasjer.c serwis_ipc.o
 
 clean:
-	rm -f $(ALL)
+	rm -f $(ALL) *.o raport.txt
+
+run: all
+	./serwis

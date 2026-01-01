@@ -5,14 +5,18 @@
 #include <string.h>
 #include <time.h>
 #include <sys/msg.h>
+#include <errno.h>
 
 int main()
 {
-    srand(getpid());
+    init_ipc(0);
+
+    srand(getpid() ^ time(NULL));
 
     Msg msg;
     msg.mtype = MSG_REJESTRACJA;
     msg.samochod.pid_kierowcy = getpid();
+    msg.samochod.zaakceptowano = 0;
 
     //Losowanie marki samochodu
     char marka = 'A' + rand() % 26;
@@ -29,35 +33,70 @@ int main()
     }
 
     //Wysłanie do rejestracji
-    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+    if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
+    {
+        perror("[KIEROWCA %d] Błąd rejestracji");
+        return 1;
+    }
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
 
     //Odbiór wyceny
-    msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), 0);
+    if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), 0) == -1)
+    {
+        perror("[KIEROWCA] Błąd odbioru wyceny");
+        return 1;
+    }
     printf("[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s\n", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
 
     //Decyzja
-    msg.mtype = MSG_DECYZJA;
-    msg.samochod.zaakceptowano = rand() % 2;
-    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+    int rezygnacja = (rand() % 100) < 2; 
 
-    printf("[KIEROWCA %d] Decyzja: %s\n", getpid(), msg.samochod.zaakceptowano ? "Akceptuję" : "Odrzucam");
+    msg.mtype = MSG_DECYZJA_USLUGI;
+    msg.samochod.zaakceptowano = !rezygnacja;
 
-    //Dodatkowa usterka
-    if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_PYTANIE, IPC_NOWAIT) != -1)
+    if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
     {
-        printf("[KIEROWCA %d] Pytanie o dodatkową usterkę: +%d PLN, +%d s\n", getpid(), msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
-
-        msg.samochod.zaakceptowano = rand() % 2;
-        msg.mtype = MSG_ODPOWIEDZ;
-        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
-
-        printf("[KIEROWCA %d] Decyzja dodatkowej usterki: %s\n", getpid(), msg.samochod.zaakceptowano ? "Akceptuję" : "Odrzucam");
+        perror("[KIEROWCA] Błąd wysłania decyzji");
+        return 1;
     }
 
-    //Czekam na zakończenie płatności
-    msgrcv(msg_id, &msg, sizeof(Samochod), MSG_ZAPLATA, 0);
-    printf("[KIEROWCA %d] Zapłacono %d PLN, odbieram samochód\n", getpid(), msg.samochod.koszt);
+    if (rezygnacja)
+    {
+        printf("[KIEROWCA %d] Rezygnuję z naprawy, odjeżdżam\n", getpid());
+        return 0;
+    }
 
+    printf("[KIEROWCA %d] Akceptuję wycenę. Czekam na naprawę...\n", getpid());
+
+    while (1)
+    {
+        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), 0) == -1)
+        {
+            perror("[KIEROWCA] Błąd odbioru wiadomości");
+            break;
+        }
+
+        if (msg.samochod.dodatkowa_usterka > 0 && msg.samochod.zaakceptowano == 0)
+        {
+            printf("[KIEROWCA %d] Dodatkowa usterka! +%d PLN, +%d s\n", getpid(), msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+
+            int odmowa = (rand() % 100) < 20;
+
+            msg.mtype = MSG_ODPOWIEDZ;
+            msg.samochod.zaakceptowano = !odmowa;
+
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+            printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
+
+            continue;
+        }
+        else
+        {
+            printf("[KIEROWCA %d] Samochód gotowy. Do zapłaty: %d PLN\n", getpid(), msg.samochod.koszt);
+            break;
+        }
+    }
+
+    printf("[KIEROWCA %d] Odjeżdżam z serwisu. Dziękuję!\n", getpid());
     return 0;
 }

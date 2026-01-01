@@ -3,6 +3,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/msg.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,7 @@ int msg_id = -1;
 SharedData *shared = NULL;
 
 //Inicjalizacja IPC
-void init_ipc()
+void init_ipc(int is_parent)
 {
     key_t key_shm = ftok(".", 'S');
     key_t key_sem = ftok(".", 'M');
@@ -29,7 +30,15 @@ void init_ipc()
     }
 
     //Pamięć współdzielona
-    shm_id = shmget(key_shm, sizeof(SharedData), IPC_CREAT | 0600);
+    if (is_parent)
+    {
+        shm_id = shmget(key_shm, sizeof(SharedData), IPC_CREAT | 0600);
+    }
+    else
+    {
+        shm_id = shmget(key_shm, sizeof(SharedData), 0600);
+    }
+
     if (shm_id == -1)
     {
         perror("shmget failed");
@@ -37,6 +46,7 @@ void init_ipc()
     }
 
     shared = (SharedData *)shmat(shm_id, NULL, 0);
+
     if (shared == (void *)-1)
     {
         perror("shmat failed");
@@ -44,45 +54,66 @@ void init_ipc()
     }
 
     //Inicjalizacja danych
-    shared->serwis_otwarty = 0;
-    shared->pozar = 0;
-
-    for (int i = 0; i < MAX_STANOWISK; i++)
+    if (is_parent)
     {
-        shared->stanowiska[i].zajete = 0;
-        shared->stanowiska[i].pid_mechanika = -1;
-        shared->stanowiska[i].przyspieszone = 0;
+        shared->serwis_otwarty = 0;
+        shared->pozar = 0;
+        shared->liczba_oczekujacych_klientow = 0;
+        shared->aktywne_okienka_obslugi = 1;
+
+        for (int i = 0; i < MAX_STANOWISK; i++)
+        {
+            shared->stanowiska[i].zajete = 0;
+            shared->stanowiska[i].pid_mechanika = -1;
+            shared->stanowiska[i].przyspieszone = 0;
+        }
+
+        //Semafor
+        sem_id = semget(key_sem, 2, IPC_CREAT | 0600);
+        if (sem_id == -1)
+        {
+            perror("semget failed");
+            exit(1);
+        }
+
+        if (semctl(sem_id, SEM_SHARED, SETVAL, 1) == -1)
+        {
+            perror("semctl SEM_SHARED failed");
+            exit(1);
+        }
+
+        if (semctl(sem_id, SEM_STANOWISKA, SETVAL, 1) == -1)
+        {
+            perror("semctl SEM_STANOWISKA failed");
+            exit(1);
+        }
+    
+        //Kolejka komunikatów
+        msg_id = msgget(key_msg, IPC_CREAT | 0600);
+        if (msg_id == -1)
+        {
+            perror("msgget failed");
+            exit(1);
+        }
+    }
+    else
+    {
+        sem_id = semget(key_sem, 2, 0600);
+        if (sem_id == -1)
+        {
+            perror("semget failed");
+            exit(1);
+        }
+
+        msg_id = msgget(key_msg, 0600);
+        if (msg_id == -1)
+        {
+            perror("msgget failed");
+            exit(1);
+        }
     }
 
-    //Semafor
-    sem_id = semget(key_sem, 2, IPC_CREAT | 0600);
-    if (sem_id == -1)
-    {
-        perror("semget failed");
-        exit(1);
-    }
-
-    if (semctl(sem_id, SEM_SHARED, SETVAL, 1) == -1)
-    {
-        perror("semctl SEM_SHARED failed");
-        exit(1);
-    }
-
-    if (semctl(sem_id, SEM_STANOWISKA, SETVAL, 1) == -1)
-    {
-        perror("semctl SEM_STANOWISKA failed");
-        exit(1);
-    }
-
-    //Kolejka komunikatów
-    msg_id = msgget(key_msg, IPC_CREAT | 0600);
-    if (msg_id == -1)
-    {
-        perror("msgget failed");
-        exit(1);
-    }
-
-    printf("[INIT] IPC zainicjalizowane poprawnie\n");
+    printf(is_parent? "[INIT] Utworzono IPC\n" : "[INIT] Dolaczono do IPC\n");
 }
 
 //Czyszczenie IPC

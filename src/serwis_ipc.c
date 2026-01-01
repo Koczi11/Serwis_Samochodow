@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <unistd.h>
 
 int shm_id = -1;
 int sem_id = -1;
@@ -184,4 +185,48 @@ void zapisz_raport(const char *tekst)
 
     write(fd, buf, len);
     close(fd);
+}
+
+static const Usluga CENNIK[MAX_USLUG] = 
+{
+    {0, "Awaria hamulców (KRYTYCZNA)", 800, 10, 1},
+    {1, "Wyciek paliwa (KRYTYCZNA)", 600, 8, 1},
+    {2, "Zerwany pasek rozrządu (KRYTYCZNA)", 900, 15, 1},
+    {3, "Wymiana oleju", 200, 3, 0},
+    {4, "Wymiana opon", 150, 4, 0},
+    {5, "Wymiana klocków hamulcowych", 300, 5, 0},
+    {6, "Wymiana tarcz hamulcowych", 500, 6, 0},
+    {7, "Wymiana płynu chłodniczego", 150, 2, 0},
+    {8, "Wymiana płynu hamulcowego", 120, 2, 0},
+    {9, "Serwis klimatyzacji", 250, 4, 0},
+    {10, "Wymiana filtra powietrza", 80, 1, 0},
+    {11, "Wymiana filtra kabinowego", 90, 1, 0},
+    {12, "Wymiana świec zapłonowych", 180, 3, 0},
+    {13, "Wymiana akumulatora", 350, 1, 0},
+    {14, "Wymiana żarówek", 50, 1, 0},
+    {15, "Wymiana wycieraczek", 80, 1, 0},
+    {16, "Diagnostyka komputerowa", 150, 2, 0},
+    {17, "Ustawienie zbieżności", 200, 5, 0},
+    {18, "Naprawa zawieszenia (przód)", 800, 8, 0},
+    {19, "Naprawa zawieszenia (tył)", 700, 8, 0},
+    {20, "Wymiana sprzęgła", 1200, 12, 0},
+    {21, "Regeneracja turbosprężarki", 1800, 14, 0},
+    {22, "Wymiana alternatora", 600, 5, 0},
+    {23, "Wymiana rozrusznika", 550, 4, 0},
+    {24, "Wymiana tłumika", 400, 3, 0},
+    {25, "Pranie tapicerki", 300, 6, 0},
+    {26, "Polerowanie lakieru", 500, 8, 0},
+    {27, "Wymiana termostatu", 200, 3, 0},
+    {28, "Wymiana uszczelki pod głowicą", 2500, 20, 0},
+    {29, "Prostowanie felg", 150, 4, 0}
+};
+
+Usluga pobierz_usluge(int id)
+{
+    if (id < 0 || id >= MAX_USLUG)
+    {
+        return CENNIK[3]; //domyślna usługa: Wymiana oleju
+    }
+    
+    return CENNIK[id];
 }

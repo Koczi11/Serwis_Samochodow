@@ -17,19 +17,59 @@ int main()
     msg.mtype = MSG_REJESTRACJA;
     msg.samochod.pid_kierowcy = getpid();
     msg.samochod.zaakceptowano = 0;
+    msg.samochod.dodatkowa_usterka = 0;
 
     //Losowanie marki samochodu
     char marka = 'A' + rand() % 26;
     msg.samochod.marka[0] = marka;
     msg.samochod.marka[1] = '\0';
 
+    int wybrana_usluga = rand() % MAX_USLUG;
+    msg.samochod.id_uslugi = wybrana_usluga;
+
+    Usluga u = pobierz_usluge(wybrana_usluga);
+
     printf("[KIEROWCA %d] Marka samochodu: %s\n", getpid(), msg.samochod.marka);
+    printf("[KIEROWCA %d] Potrzebna naprawa: %s\n", getpid(), u.nazwa);
 
     //Sprawdzenie czy marka jest obsługiwana
     if (!marka_obslugiwana(msg.samochod.marka))
     {
         printf("[KIEROWCA %d] Marka nieobsługiwana, odjeżdżam\n", getpid());
         return 0;
+    }
+
+    while(1)
+    {
+        sem_lock(SEM_SHARED);
+        int otwarte = shared->serwis_otwarty;
+        int godzina = shared->aktualna_godzina;
+        sem_unlock(SEM_SHARED);
+
+        if (otwarte)
+        {
+            break;
+        }
+        else
+        {
+            int czas_do_otwarcia = GODZINA_OTWARCIA - godzina;
+            if (czas_do_otwarcia < 0)
+            {
+                czas_do_otwarcia += 24;
+            }
+
+            if (u.krytyczna || czas_do_otwarcia <= LIMIT_OCZEKIWANIA)
+            {
+                printf("[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...\n", getpid());
+                sleep(2);
+                continue;
+            }
+            else
+            {
+                printf("[KIEROWCA %d] Serwis zamknięty, odjeżdżam\n", getpid());
+                return 0;
+            }
+        }
     }
 
     //Wysłanie do rejestracji
@@ -78,7 +118,9 @@ int main()
 
         if (msg.samochod.dodatkowa_usterka > 0 && msg.samochod.zaakceptowano == 0)
         {
-            printf("[KIEROWCA %d] Dodatkowa usterka! +%d PLN, +%d s\n", getpid(), msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+            Usluga dodatkowa = pobierz_usluge(msg.samochod.id_dodatkowej_uslugi); 
+
+            printf("[KIEROWCA %d] Dodatkowa usterka! %s, +%d PLN, +%d s\n", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
 
             int odmowa = (rand() % 100) < 20;
 
@@ -93,10 +135,15 @@ int main()
         else
         {
             printf("[KIEROWCA %d] Samochód gotowy. Do zapłaty: %d PLN\n", getpid(), msg.samochod.koszt);
+            
+            Msg paragon;
+            if (msgrcv(msg_id, &paragon, sizeof(Samochod), MSG_ZAPLATA, 0) != -1)
+            {
+                printf("[KIEROWCA %d] Zapłacono. Odjeżdżam z serwisu.\n", getpid());
+            }
+            
             break;
         }
     }
-
-    printf("[KIEROWCA %d] Odjeżdżam z serwisu. Dziękuję!\n", getpid());
     return 0;
 }

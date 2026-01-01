@@ -15,12 +15,14 @@ volatile sig_atomic_t zamknij_po = 0;
 //Obsługa sygnałów
 void sig_zamknij(int sig)
 {
+    (void)sig;
     zamknij_po = 1;
     printf("[MECHANIK %d] Otrzymano sygnał zamknięcia stanowiska %d po obsłudze\n", getpid(), id_stanowiska);
 }
 
 void sig_przyspiesz(int sig)
 {
+    (void)sig;
     if (!przyspieszony)
     {
         przyspieszony = 1;
@@ -34,6 +36,7 @@ void sig_przyspiesz(int sig)
 
 void sig_normalnie(int sig)
 {
+    (void)sig;
     if (przyspieszony)
     {
         przyspieszony = 0;
@@ -43,8 +46,8 @@ void sig_normalnie(int sig)
 
 void sig_pozar(int sig)
 {
+    (void)sig;
     printf("[MECHANIK %d] Pożar!\n", getpid());
-    exit(0);
 }
 
 int main(int argc, char *argv[])
@@ -82,108 +85,155 @@ int main(int argc, char *argv[])
 
     sem_lock(SEM_SHARED);
     shared->stanowiska[id_stanowiska].pid_mechanika = getpid();
-    shared->stanowiska[id_stanowiska].zajete = 0;
-    shared->stanowiska[id_stanowiska].przyspieszone = 0;
     sem_unlock(SEM_SHARED);
 
-    printf("[MECHANIK %d] Stanowisko %d gotowe (Marki : %s)\n", getpid(), id_stanowiska, (id_stanowiska == 7) ? "U i Y" : "A, E, I, O, U i Y" );
+    printf("[MECHANIK %d] Stanowisko %d (Marki : %s)\n", getpid(), id_stanowiska, (id_stanowiska == 7) ? "U i Y" : "A, E, I, O, U i Y" );
 
     while (1)
     {
-        if (zamknij_po)
+        int czy_otwarte = 0;
+        while (!czy_otwarte)
         {
-            printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
             sem_lock(SEM_SHARED);
-            shared->stanowiska[id_stanowiska].pid_mechanika = -1;
+            czy_otwarte = shared->serwis_otwarty;
             sem_unlock(SEM_SHARED);
-            exit(0);
-        }
-
-        if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, 0) == -1)
-        {
-            if (zamknij_po)
-                continue;
-            perror("[MECHANIK] Błąd odbioru wiadomości");
-            exit(1);
-        }
-
-        sem_lock(SEM_SHARED);
-        shared->stanowiska[id_stanowiska].zajete = 1;
-        sem_unlock(SEM_SHARED);
-
-        printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
-
-        int czas_bazowy = msg.samochod.czas_naprawy;
-
-        int part1 = czas_bazowy / 2;
-
-        if (przyspieszony)
-            part1 /= 2;
-        
-        if (part1 < 1)
-            part1 = 1;
-
-        sleep(part1);
-
-        if (rand() % 5 == 0)
-        {
-            printf("[MECHANIK %d] Wykryto dodatkową usterkę w aucie %d\n", getpid(), msg.samochod.pid_kierowcy);
-
-            msg.samochod.dodatkowa_usterka = 1;
-            msg.samochod.dodatkowy_czas = 2 + rand() % 5;
-            msg.samochod.dodatkowy_koszt = 50 + rand() % 200;
-            msg.samochod.zaakceptowano = 0;
-
-            msg.mtype = msg.samochod.pid_kierowcy;
-            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
-
-            Msg odp;
-
-            while (1)
+            if (!czy_otwarte)
             {
-                if (msgrcv(msg_id, &odp, sizeof(Samochod), MSG_ODPOWIEDZ, 0) == -1)
-                {
-                    break;
-                }
-                
-                if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
-                {
-                    msg = odp;
-                    break;
-                }
-
-                msgsnd(msg_id, &odp, sizeof(Samochod), 0);
-            }
-
-            if(msg.samochod.zaakceptowano)
-            {
-                printf("[MECHANIK %d] Dodatkowa naprawa zaakceptowana (+%ds)\n", getpid(), msg.samochod.dodatkowy_czas);
-                czas_bazowy += msg.samochod.dodatkowy_czas;
-                msg.samochod.koszt += msg.samochod.dodatkowy_koszt;
-            }
-            else
-            {
-                printf("[MECHANIK %d] Dodatkowa naprawa odrzucona\n", getpid());
+                sleep(1);
             }
         }
 
-        int part2 = czas_bazowy - part1;
-
-        if (przyspieszony)
-            part2 /= 2;
-
-        if (part2 > 0)
-            sleep(part2);
-
-        printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
-
-        msg.mtype = msg.samochod.pid_kierowcy;
-        msg.samochod.dodatkowa_usterka = 0;
-        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+        printf("[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d\n", getpid(), id_stanowiska);
 
         sem_lock(SEM_SHARED);
         shared->stanowiska[id_stanowiska].zajete = 0;
         sem_unlock(SEM_SHARED);
+
+        while (1)
+        {
+            sem_lock(SEM_SHARED);
+            int pozar = shared->pozar;
+            int otwarte = shared->serwis_otwarty;
+            sem_unlock(SEM_SHARED);
+
+            if (pozar)
+            {
+                printf("[MECHANIK %d] Pożar!\n", getpid());
+                break;
+            }
+
+            if (!otwarte)
+            {
+                printf("[MECHANIK %d] Serwis zamknięty, zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                break;
+            }
+
+            if (zamknij_po)
+            {
+                printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                sem_lock(SEM_SHARED);
+                shared->stanowiska[id_stanowiska].pid_mechanika = -1;
+                sem_unlock(SEM_SHARED);
+                exit(0);
+            }
+
+            if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, 0) == -1)
+            {
+                if (zamknij_po)
+                    continue;
+                perror("[MECHANIK] Błąd odbioru wiadomości");
+                exit(1);
+            }
+
+            sem_lock(SEM_SHARED);
+            shared->stanowiska[id_stanowiska].zajete = 1;
+            sem_unlock(SEM_SHARED);
+
+            printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
+
+            int czas_bazowy = msg.samochod.czas_naprawy;
+
+            int part1 = czas_bazowy / 2;
+
+            if (przyspieszony)
+                part1 /= 2;
+            
+            if (part1 < 1)
+                part1 = 1;
+
+            sleep(part1);
+
+            if (rand() % 5 == 0)
+            {
+                int dodatkowa_id = rand() % MAX_USLUG;
+                Usluga dodatkowa = pobierz_usluge(dodatkowa_id);
+
+                printf("[MECHANIK %d] Wykryto dodatkową usterkę w aucie %d: %s\n", getpid(), msg.samochod.pid_kierowcy, dodatkowa.nazwa);
+
+                msg.samochod.dodatkowa_usterka = 1;
+                msg.samochod.id_dodatkowej_uslugi = dodatkowa_id;
+                msg.samochod.dodatkowy_czas = dodatkowa.czas_wykonania;
+                msg.samochod.dodatkowy_koszt = dodatkowa.koszt;
+                msg.samochod.zaakceptowano = 0;
+
+                msg.mtype = msg.samochod.pid_kierowcy;
+                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+                Msg odp;
+
+                while (1)
+                {
+                    if (msgrcv(msg_id, &odp, sizeof(Samochod), MSG_ODPOWIEDZ, 0) == -1)
+                    {
+                        break;
+                    }
+                    
+                    if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
+                    {
+                        msg = odp;
+                        break;
+                    }
+
+                    msgsnd(msg_id, &odp, sizeof(Samochod), 0);
+                }
+
+                if(msg.samochod.zaakceptowano)
+                {
+                    printf("[MECHANIK %d] Dodatkowa naprawa zaakceptowana (+%ds)\n", getpid(), msg.samochod.dodatkowy_czas);
+                    czas_bazowy += msg.samochod.dodatkowy_czas;
+                    msg.samochod.koszt += msg.samochod.dodatkowy_koszt;
+                }
+                else
+                {
+                    printf("[MECHANIK %d] Dodatkowa naprawa odrzucona\n", getpid());
+                }
+            }
+
+            int part2 = czas_bazowy - part1;
+
+            if (przyspieszony)
+                part2 /= 2;
+
+            if (part2 > 0)
+                sleep(part2);
+
+            printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
+
+            msg.mtype = msg.samochod.pid_kierowcy;
+            msg.samochod.dodatkowa_usterka = 0;
+            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+            sem_lock(SEM_SHARED);
+            shared->stanowiska[id_stanowiska].zajete = 0;
+            sem_unlock(SEM_SHARED);
+        }
+
+        sem_lock(SEM_SHARED);
+        shared->stanowiska[id_stanowiska].zajete = 0;
+        sem_unlock(SEM_SHARED);
+
+        printf("[MECHANIK %d] Czekam na kolejny dzień...\n", getpid());
+        sleep(1);
     }
     return 0;
 }

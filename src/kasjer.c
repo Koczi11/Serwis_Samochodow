@@ -49,7 +49,8 @@ int main()
             snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
             zapisz_raport(buffer);
 
-            msg.mtype = MSG_ZAPLATA;
+            msg.mtype = msg.samochod.pid_kierowcy;
+            msg.samochod.dodatkowa_usterka = 0;
             
             if(msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
             {

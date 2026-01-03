@@ -34,6 +34,8 @@
 #define MSG_KASA 30
 #define MSG_ZAPLATA 31
 
+#define MSG_OD_MECHANIKA 40
+
 //Semafory
 #define SEM_SHARED 0        //Ochrona pamięci współdzielonej
 #define SEM_STANOWISKA 1    //Synchronizacja stanowisk
@@ -58,7 +60,7 @@ typedef struct
     int czas_naprawy;
     int koszt;
     int zaakceptowano;
-
+    int id_stanowiska_roboczego;
     int dodatkowa_usterka;
     int id_dodatkowej_uslugi;
     int dodatkowy_koszt;

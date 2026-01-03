@@ -72,6 +72,11 @@ int main()
         }
     }
 
+    sem_lock(SEM_SHARED);
+    shared->liczba_oczekujacych_klientow++;
+    printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
+    sem_unlock(SEM_SHARED);
+
     //Wysłanie do rejestracji
     if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
     {
@@ -116,15 +121,15 @@ int main()
             break;
         }
 
-        if (msg.samochod.dodatkowa_usterka > 0 && msg.samochod.zaakceptowano == 0)
+        if (msg.samochod.dodatkowa_usterka > 0)
         {
             Usluga dodatkowa = pobierz_usluge(msg.samochod.id_dodatkowej_uslugi); 
 
-            printf("[KIEROWCA %d] Dodatkowa usterka! %s, +%d PLN, +%d s\n", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+            printf("[KIEROWCA %d] Pracownik Serwisu zgłosił dodatkową usterkę! %s, +%d PLN, +%d s\n", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
 
             int odmowa = (rand() % 100) < 20;
 
-            msg.mtype = MSG_ODPOWIEDZ;
+            msg.mtype = MSG_DECYZJA_DODATKOWA;
             msg.samochod.zaakceptowano = !odmowa;
 
             msgsnd(msg_id, &msg, sizeof(Samochod), 0);
@@ -134,14 +139,7 @@ int main()
         }
         else
         {
-            printf("[KIEROWCA %d] Samochód gotowy. Do zapłaty: %d PLN\n", getpid(), msg.samochod.koszt);
-            
-            Msg paragon;
-            if (msgrcv(msg_id, &paragon, sizeof(Samochod), MSG_ZAPLATA, 0) != -1)
-            {
-                printf("[KIEROWCA %d] Zapłacono. Odjeżdżam z serwisu.\n", getpid());
-            }
-            
+            printf("[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam\n", getpid(), msg.samochod.koszt);
             break;
         }
     }

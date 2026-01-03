@@ -17,7 +17,8 @@ void sig_zamknij(int sig)
 {
     (void)sig;
     zamknij_po = 1;
-    printf("[MECHANIK %d] Otrzymano sygnał zamknięcia stanowiska %d po obsłudze\n", getpid(), id_stanowiska);
+    const char *msg = "[MECHANIK] Otrzymano sygnał zamknięcia stanowiska po obsłudze\n";
+    write(STDOUT_FILENO, msg, strlen(msg));
 }
 
 void sig_przyspiesz(int sig)
@@ -26,11 +27,13 @@ void sig_przyspiesz(int sig)
     if (!przyspieszony)
     {
         przyspieszony = 1;
-        printf("[MECHANIK %d] Otrzymano sygnał przyspieszenia stanowiska %d\n", getpid(), id_stanowiska);
+        const char *msg = "[MECHANIK] Otrzymano sygnał przyspieszenia stanowiska\n";
+        write(STDOUT_FILENO, msg, strlen(msg));
     }
     else
     {
-        printf("[MECHANIK %d] Stanowisko %d już jest przyspieszone\n", getpid(), id_stanowiska);
+        const char *msg = "[MECHANIK] Stanowisko już jest w trybie przyspieszonym\n";
+        write(STDOUT_FILENO, msg, strlen(msg));
     }
 }
 
@@ -40,14 +43,53 @@ void sig_normalnie(int sig)
     if (przyspieszony)
     {
         przyspieszony = 0;
-        printf("[MECHANIK %d] Otrzymano sygnał normalnej pracy stanowiska %d\n", getpid(), id_stanowiska);
+        const char *msg = "[MECHANIK] Otrzymano sygnał powrotu do normalnego trybu stanowiska\n";
+        write(STDOUT_FILENO, msg, strlen(msg));
     }
 }
 
 void sig_pozar(int sig)
 {
     (void)sig;
-    printf("[MECHANIK %d] Pożar!\n", getpid());
+    const char *msg = "[MECHANIK] POŻAR!\n";
+    write(STDOUT_FILENO, msg, strlen(msg));
+    exit(0);
+}
+
+void wykonaj_prace(int czas_pracy)
+{
+    if (przyspieszony)
+    {
+        czas_pracy /= 2;
+    }
+
+    if (czas_pracy < 1)
+    {
+        czas_pracy = 1;
+    }
+
+    while (czas_pracy > 0)
+    {
+        unsigned int unslept = sleep(czas_pracy);
+
+        if (unslept == 0)
+        {
+            break;
+        }
+        else
+        {
+            czas_pracy = unslept;
+
+            if (przyspieszony)
+            {
+                czas_pracy /= 2;
+                if (czas_pracy == 0)
+                {
+                    czas_pracy = 1;
+                }
+            }
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -152,16 +194,9 @@ int main(int argc, char *argv[])
             printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
 
             int czas_bazowy = msg.samochod.czas_naprawy;
-
             int part1 = czas_bazowy / 2;
 
-            if (przyspieszony)
-                part1 /= 2;
-            
-            if (part1 < 1)
-                part1 = 1;
-
-            sleep(part1);
+            wykonaj_prace(part1);
 
             if (rand() % 5 == 0)
             {
@@ -176,14 +211,18 @@ int main(int argc, char *argv[])
                 msg.samochod.dodatkowy_koszt = dodatkowa.koszt;
                 msg.samochod.zaakceptowano = 0;
 
-                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.samochod.id_stanowiska_roboczego = id_stanowiska;
+
+                msg.mtype = MSG_OD_MECHANIKA;
                 msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+                printf("[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu\n", getpid());
 
                 Msg odp;
 
                 while (1)
                 {
-                    if (msgrcv(msg_id, &odp, sizeof(Samochod), MSG_ODPOWIEDZ, 0) == -1)
+                    if (msgrcv(msg_id, &odp, sizeof(Samochod), 100 + id_stanowiska, 0) == -1)
                     {
                         break;
                     }
@@ -209,18 +248,18 @@ int main(int argc, char *argv[])
                 }
             }
 
-            int part2 = czas_bazowy - part1;
-
-            if (przyspieszony)
-                part2 /= 2;
+            int czas_calkowity = czas_bazowy;
+            int part2 = czas_calkowity - part1;
 
             if (part2 > 0)
-                sleep(part2);
+                wykonaj_prace(part2);
 
             printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
 
-            msg.mtype = msg.samochod.pid_kierowcy;
+            msg.mtype = MSG_OD_MECHANIKA;
             msg.samochod.dodatkowa_usterka = 0;
+            msg.samochod.id_stanowiska_roboczego = id_stanowiska;
+            
             msgsnd(msg_id, &msg, sizeof(Samochod), 0);
 
             sem_lock(SEM_SHARED);

@@ -6,11 +6,12 @@
 #include <time.h>
 
 //Flaga główna
-volatile int running = 1;
+volatile sig_atomic_t running = 1;
 
 void handle_sigterm(int sig)
 {
-    printf("\n[MAIN] Zamknięcie serwisu\n");
+    const char *msg = "\n[MAIN] Zamknięcie serwisu\n";
+    write(STDOUT_FILENO, msg, strlen(msg));
     running = 0;
 }
 

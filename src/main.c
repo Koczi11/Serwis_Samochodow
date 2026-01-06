@@ -1,15 +1,20 @@
+#define _DEFAULT_SOURCE
+
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
 
 //Flaga główna
 volatile sig_atomic_t running = 1;
 
 void handle_sigterm(int sig)
 {
+    (void) sig;
+
     const char *msg = "\n[MAIN] Zamknięcie serwisu\n";
     write(STDOUT_FILENO, msg, strlen(msg));
     running = 0;
@@ -88,6 +93,8 @@ int main()
     }
 
     kill(0, SIGTERM);
+
+    while(wait(NULL) > 0);
 
     cleanup_ipc();
     return 0;

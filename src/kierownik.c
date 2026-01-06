@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,9 +1,13 @@
+#define _GNU_SOURCE
+
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/msg.h>
 
 //Globalne ID stanowiska
 int id_stanowiska = -1;

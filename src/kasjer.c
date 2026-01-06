@@ -1,6 +1,9 @@
+#define _GNU_SOURCE
+
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/msg.h>
 
 int main()
 {

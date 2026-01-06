@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -172,6 +174,8 @@ int main(int argc, char *argv[])
                 sem_unlock(SEM_SHARED);
 
                 printf("[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
+
+                sleep(3); 
 
                 Usluga u = pobierz_usluge(msg.samochod.id_uslugi);
 

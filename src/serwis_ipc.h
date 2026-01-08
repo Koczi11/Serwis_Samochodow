@@ -12,7 +12,7 @@
 #define LIMIT_OCZEKIWANIA 1
 
 //Typy procesów
-#define PROC_KIERWOCA 1
+#define PROC_KIEROWCA 1
 #define PROC_PRACOWNIK_SERWISU 2
 #define PROC_MECHANIK 3
 #define PROC_KASJER 4
@@ -65,6 +65,7 @@ typedef struct
     int id_dodatkowej_uslugi;
     int dodatkowy_koszt;
     int dodatkowy_czas;
+    int ewakuacja;
 }Samochod;
 
 //Stan stanowiska
@@ -84,6 +85,7 @@ typedef struct
     int pozar;
     int liczba_oczekujacych_klientow;
     int aktywne_okienka_obslugi;
+    int auta_w_serwisie;
 } SharedData;
 
 //Komunikat w kolejce 

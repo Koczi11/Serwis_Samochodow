@@ -20,6 +20,7 @@ int main()
     msg.samochod.pid_kierowcy = getpid();
     msg.samochod.zaakceptowano = 0;
     msg.samochod.dodatkowa_usterka = 0;
+    msg.samochod.ewakuacja = 0;
 
     //Losowanie marki samochodu
     char marka = 'A' + rand() % 26;
@@ -82,16 +83,35 @@ int main()
     //Wysłanie do rejestracji
     if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
     {
-        perror("[KIEROWCA %d] Błąd rejestracji");
+        perror("[KIEROWCA] Błąd rejestracji");
         return 1;
     }
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
 
     //Odbiór wyceny
-    if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), 0) == -1)
+    while (1)
     {
-        perror("[KIEROWCA] Błąd odbioru wyceny");
-        return 1;
+        sem_lock(SEM_SHARED);
+        if (shared->pozar)
+        {
+            sem_unlock(SEM_SHARED);
+            printf("[KIEROWCA %d] Pożar! Uciekam z serwisu!\n", getpid());
+            return 0;
+        }
+        sem_unlock(SEM_SHARED);
+
+        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) != -1)
+        {
+            break;
+        }
+
+        if (errno != ENOMSG)
+        {
+            perror("[KIEROWCA] Błąd odbioru wyceny");
+            return 1;
+        }
+
+        usleep(100000);
     }
     printf("[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s\n", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
 
@@ -117,9 +137,31 @@ int main()
 
     while (1)
     {
-        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), 0) == -1)
+        sem_lock(SEM_SHARED);
+        int pozar = shared->pozar;
+        sem_unlock(SEM_SHARED);
+
+        if (pozar)
         {
+            printf("[KIEROWCA %d] Widzę ogień! Biorę kluczyki z lady i uciekam\n", getpid());
+            break;
+        }
+
+
+        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) == -1)
+        {
+            if (errno == ENOMSG)
+            {
+                usleep(100000);
+                continue;
+            }
             perror("[KIEROWCA] Błąd odbioru wiadomości");
+            break;
+        }
+
+        if (msg.samochod.ewakuacja)
+        {
+            printf("[KIEROWCA %d] Mechanik oddał kluczyki z powodu pożaru! Uciekam!\n", getpid());
             break;
         }
 

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
+#include <sys/wait.h>
 
 //Flaga główna
 volatile sig_atomic_t running = 1;
@@ -82,7 +83,10 @@ int main()
     //Kierowcy
     while (running)
     {
-        usleep((rand() % 2000) * 1000);
+        usleep(100000 + (rand() % 2000000));
+
+        if (!running)
+            break;
 
         if (fork() == 0)
         {

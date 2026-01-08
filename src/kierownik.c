@@ -27,7 +27,7 @@ int main()
 
         sem_lock(SEM_SHARED);
         shared->aktualna_godzina++;
-        if (shared->aktualna_godzina > 24)
+        if (shared->aktualna_godzina > 23)
         {
             shared->aktualna_godzina = 0;
         }
@@ -44,7 +44,7 @@ int main()
 
         if (godzina >= GODZINA_OTWARCIA && godzina < GODZINA_ZAMKNIECIA)
         {
-            if (!otwarte)
+            if (!otwarte && !pozar)
             {
                 printf("[KIEROWNIK] Godzina %d:00. Otwieram serwis\n", godzina);
                 shared->serwis_otwarty = 1;

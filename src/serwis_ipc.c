@@ -4,6 +4,7 @@
 #include <sys/sem.h>
 #include <sys/msg.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,7 @@ void init_ipc(int is_parent)
         shared->pozar = 0;
         shared->liczba_oczekujacych_klientow = 0;
         shared->aktywne_okienka_obslugi = 1;
+        shared->auta_w_serwisie = 0;
 
         for (int i = 0; i < MAX_STANOWISK; i++)
         {

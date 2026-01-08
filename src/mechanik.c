@@ -15,6 +15,7 @@ int id_stanowiska = -1;
 //Globalne flagi
 volatile sig_atomic_t przyspieszony = 0;
 volatile sig_atomic_t zamknij_po = 0;
+volatile sig_atomic_t jest_pozar = 0;
 
 //Obsługa sygnałów
 void sig_zamknij(int sig)
@@ -55,9 +56,10 @@ void sig_normalnie(int sig)
 void sig_pozar(int sig)
 {
     (void)sig;
+    jest_pozar = 1;
     const char *msg = "[MECHANIK] POŻAR!\n";
     write(STDOUT_FILENO, msg, strlen(msg));
-    exit(0);
+    //exit(0);
 }
 
 void wykonaj_prace(int czas_pracy)
@@ -74,7 +76,17 @@ void wykonaj_prace(int czas_pracy)
 
     while (czas_pracy > 0)
     {
+        if (jest_pozar)
+        {
+            return;
+        }
+
         unsigned int unslept = sleep(czas_pracy);
+
+        if (jest_pozar)
+        {
+            return;
+        }
 
         if (unslept == 0)
         {
@@ -137,9 +149,15 @@ int main(int argc, char *argv[])
 
     while (1)
     {
+        if (jest_pozar)
+            break;
+
         int czy_otwarte = 0;
         while (!czy_otwarte)
         {
+            if (jest_pozar)
+                break;
+
             sem_lock(SEM_SHARED);
             czy_otwarte = shared->serwis_otwarty;
             sem_unlock(SEM_SHARED);
@@ -149,6 +167,9 @@ int main(int argc, char *argv[])
             }
         }
 
+        if (jest_pozar)
+            break;
+
         printf("[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d\n", getpid(), id_stanowiska);
 
         sem_lock(SEM_SHARED);
@@ -157,16 +178,12 @@ int main(int argc, char *argv[])
 
         while (1)
         {
+            if (jest_pozar)
+                break;
+
             sem_lock(SEM_SHARED);
-            int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;
             sem_unlock(SEM_SHARED);
-
-            if (pozar)
-            {
-                printf("[MECHANIK %d] Pożar!\n", getpid());
-                break;
-            }
 
             if (!otwarte)
             {
@@ -183,10 +200,27 @@ int main(int argc, char *argv[])
                 exit(0);
             }
 
-            if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, 0) == -1)
+            if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, IPC_NOWAIT) == -1)
             {
-                if (zamknij_po)
+                if (errno == ENOMSG || errno == EINTR)
+                {
+                    if (jest_pozar)
+                        break;
+
+                    if (zamknij_po && errno != EINTR)
+                    {
+                        printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                        sem_lock(SEM_SHARED);
+                        shared->stanowiska[id_stanowiska].pid_mechanika = -1;
+                        sem_unlock(SEM_SHARED);
+                        exit(0);
+                    }
+
+                    if (errno == ENOMSG)
+                        usleep(100000);
                     continue;
+                }
+
                 perror("[MECHANIK] Błąd odbioru wiadomości");
                 exit(1);
             }
@@ -201,6 +235,20 @@ int main(int argc, char *argv[])
             int part1 = czas_bazowy / 2;
 
             wykonaj_prace(part1);
+
+            if (jest_pozar)
+            {
+                printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.samochod.ewakuacja = 1;
+                msg.samochod.koszt = 0;
+                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+                sem_lock(SEM_SHARED);
+                shared->stanowiska[id_stanowiska].zajete = 0;
+                sem_unlock(SEM_SHARED);
+                break;
+            }
 
             if (rand() % 5 == 0)
             {
@@ -226,18 +274,41 @@ int main(int argc, char *argv[])
 
                 while (1)
                 {
-                    if (msgrcv(msg_id, &odp, sizeof(Samochod), 100 + id_stanowiska, 0) == -1)
+                    if (jest_pozar)
                     {
-                        break;
-                    }
-                    
-                    if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
-                    {
-                        msg = odp;
                         break;
                     }
 
-                    msgsnd(msg_id, &odp, sizeof(Samochod), 0);
+                    if (msgrcv(msg_id, &odp, sizeof(Samochod), 100 + id_stanowiska, IPC_NOWAIT) != -1)
+                    {
+                        if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
+                        {
+                            msg = odp;
+                            break;
+                        }
+                        else
+                        {
+                            msgsnd(msg_id, &odp, sizeof(Samochod), 0);
+                        }
+                    }
+                    else
+                    {
+                        usleep(100000);
+                    }
+                }
+
+                if (jest_pozar)
+                {
+                    printf("[MECHANIK %d] Pożar! Nie czekam na decyzję. Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.samochod.ewakuacja = 1;
+                    msg.samochod.koszt = 0;
+                    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+                    sem_lock(SEM_SHARED);
+                    shared->stanowiska[id_stanowiska].zajete = 0;
+                    sem_unlock(SEM_SHARED);
+                    break;
                 }
 
                 if(msg.samochod.zaakceptowano)
@@ -258,6 +329,20 @@ int main(int argc, char *argv[])
             if (part2 > 0)
                 wykonaj_prace(part2);
 
+            if (jest_pozar)
+            {
+                printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.samochod.ewakuacja = 1;
+                msg.samochod.koszt = 0;
+                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+
+                sem_lock(SEM_SHARED);
+                shared->stanowiska[id_stanowiska].zajete = 0;
+                sem_unlock(SEM_SHARED);
+                break;
+            }
+
             printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
 
             msg.mtype = MSG_OD_MECHANIKA;
@@ -274,6 +359,12 @@ int main(int argc, char *argv[])
         sem_lock(SEM_SHARED);
         shared->stanowiska[id_stanowiska].zajete = 0;
         sem_unlock(SEM_SHARED);
+
+        if (jest_pozar)
+        {
+            printf("[MECHANIK %d] Uciekam przed pożarem!\n", getpid());
+            break;
+        }
 
         printf("[MECHANIK %d] Czekam na kolejny dzień...\n", getpid());
         sleep(1);

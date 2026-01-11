@@ -9,9 +9,10 @@
 #include <string.h>
 #include <sys/wait.h>
 
-//Flaga główna
+//Flaga sterująca pętlą główną
 volatile sig_atomic_t running = 1;
 
+//Obsługa sygnału zamknięcia
 void handle_sigterm(int sig)
 {
     (void) sig;
@@ -23,19 +24,21 @@ void handle_sigterm(int sig)
 
 int main()
 {
-    //Obsługa sygnałów
+    //Konfiguracja obsługi sygnałów
     signal(SIGTERM, handle_sigterm);
     signal(SIGINT, handle_sigterm);
 
-    //Zapobiegamy powstawaniu zombie
-    signal(SIGCHLD, SIG_IGN);
-
     srand(time(NULL));
 
+    //Tworzenie zasobów IPC
+    //1 - tworzymy i zerujemy pamięć
     init_ipc(1);
 
+    //Bufor do przekazywania argumentów do procesów potomnych
     char arg_buff[10];
 
+    //Uruchamianie personelu serwisu
+    
     //Kasjer
     if (fork() == 0)
     {
@@ -96,10 +99,16 @@ int main()
         }
     }
 
+    printf("[MAIN] Kończenie pracy...\n");
+
+    //Zamykanie procesów potomnych
     kill(0, SIGTERM);
 
+    //Zapobieganie powstawaniu zombie
     while(wait(NULL) > 0);
 
+    //Czyszczenie zasobów IPC
     cleanup_ipc();
+
     return 0;
 }

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/msg.h>
 
+//Funkcja sprawdzająca, czy są aktywni mechanicy
 int aktywni_mechanicy()
 {
     int aktywni = 0;
@@ -23,13 +24,17 @@ int aktywni_mechanicy()
 
 int main()
 {
+    //Dołączanie do IPC
     init_ipc(0);
 
     Msg msg;
+    //Bufor do raportów
     char buffer[256];
 
+    //Pętla dni pracy
     while (1)
     {
+        //Czekamy na otwarcie serwisu
         while (1)
         {
             sem_lock(SEM_SHARED);
@@ -44,6 +49,7 @@ int main()
     
         printf("[KASJER] Kasa otwarta\n");
 
+        //Pętla obsługi klientów
         while (1)
         {
             sem_lock(SEM_SHARED);
@@ -57,15 +63,17 @@ int main()
                 break;
             }
 
-            //Czekamy na klienta do zapłaty
+            //Obsługa płatności klientów
             if(msgrcv(msg_id, &msg, sizeof(Samochod), MSG_KASA, IPC_NOWAIT) != -1)
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 sleep(2); //Symulacja płatności
 
+                //Zapisujemy raport o płatności
                 snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
                 zapisz_raport(buffer);
 
+                //Odsyłamy potwierdzenie płatności do kierowcy
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.dodatkowa_usterka = 0;
                 
@@ -77,6 +85,7 @@ int main()
                 {
                     printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
 
+                    //Dekrementacja liczniy aut w serwisie
                     sem_lock(SEM_SHARED);
                     if (shared->auta_w_serwisie > 0)
                     {
@@ -85,9 +94,11 @@ int main()
                     sem_unlock(SEM_SHARED);
                 }
 
+                //Przejdź do obsługi następnego klienta
                 continue;
             }
 
+            //Procedura zamknięcia kasy, jeśli serwis jest zamknięty i nie ma klientów
             if (!otwarte)
             {
                 int auta_zostaly = 0;
@@ -97,6 +108,7 @@ int main()
 
                 if (!aktywni_mechanicy() && auta_zostaly == 0)
                 {
+                    //Ostanie sprawdzenie wiadomości
                     if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_KASA, IPC_NOWAIT) == -1)
                     {
                         printf("[KASJER] Kasa zamknięta, brak klientów\n");

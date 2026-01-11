@@ -11,6 +11,7 @@
 
 int main()
 {
+    //Dołączenie do IPC
     init_ipc(0);
 
     srand(getpid() ^ time(NULL));
@@ -27,6 +28,7 @@ int main()
     msg.samochod.marka[0] = marka;
     msg.samochod.marka[1] = '\0';
 
+    //Losowanie usługi
     int wybrana_usluga = rand() % MAX_USLUG;
     msg.samochod.id_uslugi = wybrana_usluga;
 
@@ -42,6 +44,7 @@ int main()
         return 0;
     }
 
+    //Czekanie na otwarcie serwisu
     while(1)
     {
         sem_lock(SEM_SHARED);
@@ -51,16 +54,19 @@ int main()
 
         if (otwarte)
         {
+            //Serwis jest otwarty
             break;
         }
         else
         {
+            //Obliczanie czasu do otwarcia
             int czas_do_otwarcia = GODZINA_OTWARCIA - godzina;
             if (czas_do_otwarcia < 0)
             {
                 czas_do_otwarcia += 24;
             }
 
+            //Kierowca czeka tylko jeśli usługa jest krytyczna lub czas oczekiwania jest krótki (<= 1 godzina)
             if (u.krytyczna || czas_do_otwarcia <= LIMIT_OCZEKIWANIA)
             {
                 printf("[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...\n", getpid());
@@ -75,6 +81,7 @@ int main()
         }
     }
 
+    //Dołączenie do kolejki oczekujących klientów
     sem_lock(SEM_SHARED);
     shared->liczba_oczekujacych_klientow++;
     printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
@@ -102,6 +109,7 @@ int main()
 
         if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) != -1)
         {
+            //Otrzymano wycenę
             break;
         }
 
@@ -113,10 +121,19 @@ int main()
 
         usleep(100000);
     }
+
+    //Sprawdzenie czy serwis może wykonać naprawę (z powodu zamknięcia lub pożaru)
+    if (msg.samochod.koszt == 0 && !msg.samochod.ewakuacja)
+    {
+        printf("[KIEROWCA %d] Serwis nie może wykonać naprawy, odjeżdżam\n", getpid());
+        return 0;
+    }
+
     printf("[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s\n", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
 
-    //Decyzja
-    int rezygnacja = (rand() % 100) < 2; 
+    //Decyzja kierowcy
+    //2% szans na rezygnację
+    int rezygnacja = (rand() % 100) < 2;
 
     msg.mtype = MSG_DECYZJA_USLUGI;
     msg.samochod.zaakceptowano = !rezygnacja;
@@ -135,6 +152,7 @@ int main()
 
     printf("[KIEROWCA %d] Akceptuję wycenę. Czekam na naprawę...\n", getpid());
 
+    //Oczekiwanie na zakończenie naprawy
     while (1)
     {
         sem_lock(SEM_SHARED);
@@ -147,7 +165,7 @@ int main()
             break;
         }
 
-
+        //Odbiór wiadomości zwrotnych
         if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) == -1)
         {
             if (errno == ENOMSG)
@@ -159,18 +177,21 @@ int main()
             break;
         }
 
+        //Obsluga sytuacji wyjątkowych
         if (msg.samochod.ewakuacja)
         {
             printf("[KIEROWCA %d] Mechanik oddał kluczyki z powodu pożaru! Uciekam!\n", getpid());
             break;
         }
 
+        //Obsługa dodatkowych usterek
         if (msg.samochod.dodatkowa_usterka > 0)
         {
             Usluga dodatkowa = pobierz_usluge(msg.samochod.id_dodatkowej_uslugi); 
 
             printf("[KIEROWCA %d] Pracownik Serwisu zgłosił dodatkową usterkę! %s, +%d PLN, +%d s\n", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
 
+            //20% szans na odrzucenie dodatkowej usterki
             int odmowa = (rand() % 100) < 20;
 
             msg.mtype = MSG_DECYZJA_DODATKOWA;
@@ -179,10 +200,12 @@ int main()
             msgsnd(msg_id, &msg, sizeof(Samochod), 0);
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
 
+            //Czekanie na kontynuację naprawy
             continue;
         }
         else
         {
+            //Koniec naprawy
             printf("[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam\n", getpid(), msg.samochod.koszt);
             break;
         }

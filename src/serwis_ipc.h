@@ -3,42 +3,26 @@
 
 #include <sys/types.h>
 
+//STAŁE
 #define MAX_STANOWISK 8
 #define MAX_USLUG 30
 #define MAX_MARKA_LEN 2
 
-#define GODZINA_OTWARCIA 8
+#define GODZINA_OTWARCIA 8      
 #define GODZINA_ZAMKNIECIA 18 
 #define LIMIT_OCZEKIWANIA 1
 
-//Typy procesów
-#define PROC_KIEROWCA 1
-#define PROC_PRACOWNIK_SERWISU 2
-#define PROC_MECHANIK 3
-#define PROC_KASJER 4
-#define PROC_KIEROWNIK 5
-
-//Typy komunikatów
+//TYPY KOMUNIKATÓW
 #define MSG_REJESTRACJA 1
-//#define MSG_WYCENA 2
-#define MSG_DECYZJA_USLUGI 3 
-
-#define MSG_NAPRAWA 10
-#define MSG_KONIEC_NAPRAWY 11
-
-#define MSG_USTERKA 20
-#define MSG_PYTANIE 21
-#define MSG_ODPOWIEDZ 22
+#define MSG_DECYZJA_USLUGI 3
 #define MSG_DECYZJA_DODATKOWA 23
-
 #define MSG_KASA 30
-#define MSG_ZAPLATA 31
-
 #define MSG_OD_MECHANIKA 40
 
-//Semafory
-#define SEM_SHARED 0        //Ochrona pamięci współdzielonej
-#define SEM_STANOWISKA 1    //Synchronizacja stanowisk
+//SEMAFORY
+#define SEM_SHARED 0                //Główny semafor do ochrony pamięci współdzielonej
+
+//STRUKTURY DANYCH
 
 //Opis usługi
 typedef struct
@@ -56,15 +40,19 @@ typedef struct
 {
     pid_t pid_kierowcy;
     char marka[MAX_MARKA_LEN];
+
     int id_uslugi;
     int czas_naprawy;
     int koszt;
     int zaakceptowano;
+    
     int id_stanowiska_roboczego;
+
     int dodatkowa_usterka;
     int id_dodatkowej_uslugi;
     int dodatkowy_koszt;
     int dodatkowy_czas;
+
     int ewakuacja;
 }Samochod;
 
@@ -76,7 +64,7 @@ typedef struct
     int przyspieszone;
 } Stanowisko;
 
-//Pamięć współdzielona serwisu
+//Główna struktura pamięci współdzielonej
 typedef struct
 {
     Stanowisko stanowiska[MAX_STANOWISK];
@@ -95,23 +83,24 @@ typedef struct
     Samochod samochod;
 } Msg;
 
-//Identyfikatory IPC
+//Zmienne globalne
 extern int shm_id;
 extern int sem_id;
 extern int msg_id;
 extern SharedData *shared;
 
-//Funkcje
+//FUNKCJE
+
 void init_ipc(int is_parent);
 void cleanup_ipc();
 
 int marka_obslugiwana(const char *m);
 
+//Operacje semaforowe
 void sem_lock(int num);
 void sem_unlock(int num);
 
 void zapisz_raport(const char *tekst);
-
 Usluga pobierz_usluge(int id);
 
 #endif

@@ -9,6 +9,7 @@
 
 int main()
 {
+    //Dołączenie do IPC
     init_ipc(0);
 
     srand(time(NULL));
@@ -23,9 +24,12 @@ int main()
 
     while (1)
     {
+        //Symulacja upływu czasu (1 godzina = 5 sekund)
         sleep(5);
 
         sem_lock(SEM_SHARED);
+
+        //Inkrementacja godziny i pętla doby
         shared->aktualna_godzina++;
         if (shared->aktualna_godzina > 23)
         {
@@ -36,12 +40,14 @@ int main()
         int pozar = shared->pozar;
         int otwarte = shared->serwis_otwarty;
 
+        //Reset pożaru o 5:00
         if (godzina == 5)
         {
             shared->pozar = 0;
             pozar = 0;
         }
 
+        //Decyzja o otwarciu/zamknięciu serwisu
         if (godzina >= GODZINA_OTWARCIA && godzina < GODZINA_ZAMKNIECIA)
         {
             if (!otwarte && !pozar)
@@ -62,6 +68,7 @@ int main()
         }
         sem_unlock(SEM_SHARED);
 
+        //Informacje o stanie serwisu
         if (!otwarte)
         {
             if (pozar)
@@ -75,23 +82,29 @@ int main()
             continue;
         }
 
+        //Losowe zdarzenia
+        //Kierownik losowo wpływa na pracę mechaników
+
         int stanowisko = rand() % MAX_STANOWISK;
 
+        //Pobieramy PID mechanika z wylosowanego stanowiska
         sem_lock(SEM_SHARED);
         pid_t pid = shared->stanowiska[stanowisko].pid_mechanika;
         sem_unlock(SEM_SHARED);
 
+        //Stanowisko jest puste
         if (pid <= 0)
             continue;
 
+        //10% szansy na zdarzenie
         int los = rand () % 100;
-
         if (los < 10)
         {
             int akcja = rand() % 4;
 
             switch (akcja)
             {
+                //Sygnał 1: Zamknięcie stanowiska
                 case 0:
                     printf("[KIEROWNIK] Zamknięcie stanowiska %d\n", stanowisko);
                     if (kill(pid, SIGUSR1) == -1) 
@@ -100,6 +113,7 @@ int main()
                     }
                     break;
 
+                //Sygnał 2: Przyspieszenie pracy stanowiska
                 case 1:
                     printf("[KIEROWNIK] Przyspieszenie stanowiska %d\n", stanowisko);
                     if (kill(pid, SIGUSR2) == -1) 
@@ -108,6 +122,7 @@ int main()
                     }
                     break;
 
+                //Sygnał 3: Wznowienie normalnej pracy stanowiska
                 case 2:
                     printf("[KIEROWNIK] Normalna praca stanowiska %d\n", stanowisko);
                     if (kill(pid, SIGCONT) == -1) 
@@ -115,7 +130,8 @@ int main()
                         perror("[KIEROWNIK] Błąd wysłania SIGCONT");
                     }
                     break;
-
+                    
+                //Sygnał 4: Pożar w serwisie
                 case 3:
                     printf("[KIEROWNIK] POŻAR!\n");
                     sem_lock(SEM_SHARED);

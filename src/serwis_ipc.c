@@ -13,14 +13,18 @@
 #include <time.h>
 #include <unistd.h>
 
-int shm_id = -1;
-int sem_id = -1;
-int msg_id = -1;
-SharedData *shared = NULL;
+//Definicje zmiennych globalnych
+int shm_id = -1;    //Pamięć współdzielona
+int sem_id = -1;    //Semafory
+int msg_id = -1;    //Kolejka komunikatów
+SharedData *shared = NULL;  //Wskaźnik do pamięci współdzielonej
 
 //Inicjalizacja IPC
+//1 - tworzy i czyści zasoby (rodzic)
+//0 - dołącza do istniejących zasobów (dziecko)
 void init_ipc(int is_parent)
 {
+    //Generowanie kluczy
     key_t key_shm = ftok(".", 'S');
     key_t key_sem = ftok(".", 'M');
     key_t key_msg = ftok(".", 'Q');
@@ -34,10 +38,12 @@ void init_ipc(int is_parent)
     //Pamięć współdzielona
     if (is_parent)
     {
+        //Tworzenie
         shm_id = shmget(key_shm, sizeof(SharedData), IPC_CREAT | 0600);
     }
     else
     {
+        //Dołączanie
         shm_id = shmget(key_shm, sizeof(SharedData), 0600);
     }
 
@@ -47,6 +53,7 @@ void init_ipc(int is_parent)
         exit(1);
     }
 
+    //Mapowanie pamięci do przestrzeni adresowej procesu
     shared = (SharedData *)shmat(shm_id, NULL, 0);
 
     if (shared == (void *)-1)
@@ -55,7 +62,7 @@ void init_ipc(int is_parent)
         exit(1);
     }
 
-    //Inicjalizacja danych
+    //Inicjalizacja struktur danych
     if (is_parent)
     {
         shared->serwis_otwarty = 0;
@@ -71,23 +78,18 @@ void init_ipc(int is_parent)
             shared->stanowiska[i].przyspieszone = 0;
         }
 
-        //Semafor
-        sem_id = semget(key_sem, 2, IPC_CREAT | 0600);
+        //Semafory
+        sem_id = semget(key_sem, 1, IPC_CREAT | 0600);
         if (sem_id == -1)
         {
             perror("semget failed");
             exit(1);
         }
 
+        //Ustawianie wartości początkowej semaforów
         if (semctl(sem_id, SEM_SHARED, SETVAL, 1) == -1)
         {
             perror("semctl SEM_SHARED failed");
-            exit(1);
-        }
-
-        if (semctl(sem_id, SEM_STANOWISKA, SETVAL, 1) == -1)
-        {
-            perror("semctl SEM_STANOWISKA failed");
             exit(1);
         }
     
@@ -101,7 +103,8 @@ void init_ipc(int is_parent)
     }
     else
     {
-        sem_id = semget(key_sem, 2, 0600);
+        //Procesy potomne dołączają do istniejących zasobów
+        sem_id = semget(key_sem, 1, 0600);
         if (sem_id == -1)
         {
             perror("semget failed");
@@ -116,27 +119,32 @@ void init_ipc(int is_parent)
         }
     }
 
-    printf(is_parent? "[INIT] Utworzono IPC\n" : "[INIT] Dolaczono do IPC\n");
+    //Log dla debugowania
+    //printf(is_parent? "[INIT] Utworzono IPC\n" : "[INIT] Dolaczono do IPC\n");
 }
 
-//Czyszczenie IPC
+//Czyszczenie zasobów IPC
 void cleanup_ipc()
 {
+    //Odłączanie pamięci współdzielonej
     if (shared != NULL)
     {
         shmdt(shared);
     }
 
+    //Usuwanie segmentu pamięci współdzielonej
     if (shm_id != -1)
     {
         shmctl(shm_id, IPC_RMID, NULL);
     }
 
+    //Usuwanie zbioru semaforów
     if (sem_id != -1)
     {
         semctl(sem_id, 0, IPC_RMID);
     }
 
+    //Usuwanie kolejki komunikatów
     if (msg_id != -1)
     {
         msgctl(msg_id, IPC_RMID, NULL);
@@ -158,19 +166,21 @@ int marka_obslugiwana(const char *m)
     return 0;
 }
 
-//Operacje semaforowe
+//Opuszcza semafor
 void sem_lock(int num)
 {
     struct sembuf sb = {num, -1, 0};
     semop(sem_id, &sb, 1);
 }
 
+//Podnosi semafor
 void sem_unlock(int num)
 {
     struct sembuf sb = {num, 1, 0};
     semop(sem_id, &sb, 1);
 }
 
+//Zapisuje log do pliku tekstowego raport.txt
 void zapisz_raport(const char *tekst)
 {
     int fd = open("raport.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
@@ -189,6 +199,7 @@ void zapisz_raport(const char *tekst)
     close(fd);
 }
 
+//Stała tablica usług (Cennik)
 static const Usluga CENNIK[MAX_USLUG] = 
 {
     {0, "Awaria hamulców (KRYTYCZNA)", 800, 10, 1},
@@ -223,6 +234,7 @@ static const Usluga CENNIK[MAX_USLUG] =
     {29, "Prostowanie felg", 150, 4, 0}
 };
 
+//Pobiera opis usługi na podstawie ID
 Usluga pobierz_usluge(int id)
 {
     if (id < 0 || id >= MAX_USLUG)

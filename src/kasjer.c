@@ -49,6 +49,9 @@ int main()
     
         printf("[KASJER] Kasa otwarta\n");
 
+        int dzienny_utarg = 0;
+        zapisz_raport("[KASJER] Kasa otwarta. Rozpoczynamy nowy dzień.");
+
         //Pętla obsługi klientów
         while (1)
         {
@@ -68,6 +71,9 @@ int main()
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 sleep(2); //Symulacja płatności
+
+                //Aktualizacja dziennego utargu
+                dzienny_utarg += msg.samochod.koszt;
 
                 //Zapisujemy raport o płatności
                 snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
@@ -119,6 +125,23 @@ int main()
 
             usleep(100000);
         }
+
+        sem_lock(SEM_SHARED);
+        int pozar = shared->pozar;
+        sem_unlock(SEM_SHARED);
+
+        //Zapisujemy raport o zamknięciu kasy
+        if (pozar)
+        {
+            snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
+        }
+        else
+        {
+            snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta. Dzienny utarg: %d PLN", dzienny_utarg);
+        }
+
+        zapisz_raport(buffer);
+        printf("%s\n", buffer);
     }
     return 0;
 }

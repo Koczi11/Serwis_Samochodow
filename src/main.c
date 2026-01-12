@@ -8,9 +8,24 @@
 #include <time.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 //Flaga sterująca pętlą główną
 volatile sig_atomic_t running = 1;
+
+//Obsługa sygnału zakończenia procesu potomnego
+void handle_sigchld(int sig)
+{
+    (void) sig;
+
+    //Zapisywanie errno, aby nie zostało nadpisane
+    int saved_errno = errno;
+
+    //Czyszczenie zakończonych procesów potomnych
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+
+    errno = saved_errno;
+}
 
 //Obsługa sygnału zamknięcia
 void handle_sigterm(int sig)
@@ -27,6 +42,9 @@ int main()
     //Konfiguracja obsługi sygnałów
     signal(SIGTERM, handle_sigterm);
     signal(SIGINT, handle_sigterm);
+
+    //Zapobieganie powstawaniu procesów zombie
+    signal(SIGCHLD, handle_sigchld);
 
     srand(time(NULL));
 
@@ -86,7 +104,7 @@ int main()
     //Kierowcy
     while (running)
     {
-        usleep(100000 + (rand() % 2000000));
+        usleep(2000000 + (rand() % 3000000));
 
         if (!running)
             break;
@@ -101,10 +119,13 @@ int main()
 
     printf("[MAIN] Kończenie pracy...\n");
 
+    //Ignorowanie SIGTERM w main, aby kill(0) nas nie zabił
+    signal(SIGTERM, SIG_IGN);
+
     //Zamykanie procesów potomnych
     kill(0, SIGTERM);
 
-    //Zapobieganie powstawaniu zombie
+    //Czekanie na zakończenie procesów stałych
     while(wait(NULL) > 0);
 
     //Czyszczenie zasobów IPC

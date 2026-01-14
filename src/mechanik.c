@@ -8,6 +8,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/msg.h>
+#include <time.h>
 
 //Zmienne globalne
 int id_stanowiska = -1;
@@ -115,6 +116,8 @@ void wykonaj_prace(int czas_pracy)
 
 int main(int argc, char *argv[])
 {
+    srand(getpid() ^ time(NULL));
+
     if (argc < 2)
     {
         fprintf(stderr, "Brak ID stanowiska\n");
@@ -137,9 +140,9 @@ int main(int argc, char *argv[])
         perror("signal SIGUSR2 failed");
     }
 
-    if (signal(SIGCONT, sig_normalnie) == SIG_ERR)
+    if (signal(SIGRTMIN, sig_normalnie) == SIG_ERR)
     {
-        perror("signal SIGCONT failed");
+        perror("signal SIGRTMIN failed");
     }
 
     if (signal(SIGTERM, sig_pozar) == SIG_ERR)
@@ -209,7 +212,7 @@ int main(int argc, char *argv[])
             if (zamknij_po)
             {
                 //Sprawdzenie czy są jeszcze auta do obsłużenia
-                if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, IPC_NOWAIT) != -1)
+                if (recv_msg(msg_id, &msg, 100 + id_stanowiska, IPC_NOWAIT) != -1)
                 {
                     //Obsługa auta przed zamknięciem stanowiska
                     msg.mtype = MSG_REJESTRACJA;
@@ -220,7 +223,7 @@ int main(int argc, char *argv[])
                     shared->liczba_oczekujacych_klientow++;
                     sem_unlock(SEM_SHARED);
 
-                    if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
+                    if (send_msg(msg_id, &msg) == -1)
                     {
                         perror("[MECHANIK] Błąd odsyłania samochodu do kolejki");
                     }
@@ -241,7 +244,7 @@ int main(int argc, char *argv[])
             }
 
             //Oczekiwanie na zlecenie naprawy auta
-            if (msgrcv(msg_id, &msg, sizeof(Samochod), 100 + id_stanowiska, IPC_NOWAIT) == -1)
+            if (recv_msg(msg_id, &msg, 100 + id_stanowiska, IPC_NOWAIT) == -1)
             {
                 if (errno == ENOMSG || errno == EINTR)
                 {
@@ -287,7 +290,7 @@ int main(int argc, char *argv[])
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
-                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                send_msg(msg_id, &msg);
 
                 sem_lock(SEM_SHARED);
                 shared->stanowiska[id_stanowiska].zajete = 0;
@@ -312,7 +315,7 @@ int main(int argc, char *argv[])
 
                 //Wysyłamy do Pracownika Serwisu
                 msg.mtype = MSG_OD_MECHANIKA;
-                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                send_msg(msg_id, &msg);
 
                 printf("[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu\n", getpid());
 
@@ -326,7 +329,7 @@ int main(int argc, char *argv[])
                         break;
                     }
 
-                    if (msgrcv(msg_id, &odp, sizeof(Samochod), 100 + id_stanowiska, IPC_NOWAIT) != -1)
+                    if (recv_msg(msg_id, &odp, 100 + id_stanowiska, IPC_NOWAIT) != -1)
                     {
                         //Sprawdzenie czy to odpowiedź dla tego auta
                         if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
@@ -336,7 +339,7 @@ int main(int argc, char *argv[])
                         }
                         else
                         {
-                            msgsnd(msg_id, &odp, sizeof(Samochod), 0);
+                            send_msg(msg_id, &odp);
                         }
                     }
                     else
@@ -352,7 +355,7 @@ int main(int argc, char *argv[])
                     msg.mtype = msg.samochod.pid_kierowcy;
                     msg.samochod.ewakuacja = 1;
                     msg.samochod.koszt = 0;
-                    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                    send_msg(msg_id, &msg);
 
                     sem_lock(SEM_SHARED);
                     shared->stanowiska[id_stanowiska].zajete = 0;
@@ -385,7 +388,7 @@ int main(int argc, char *argv[])
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
-                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                send_msg(msg_id, &msg);
 
                 sem_lock(SEM_SHARED);
                 shared->stanowiska[id_stanowiska].zajete = 0;
@@ -400,7 +403,7 @@ int main(int argc, char *argv[])
             msg.samochod.dodatkowa_usterka = 0;
             msg.samochod.id_stanowiska_roboczego = id_stanowiska;
             
-            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+            send_msg(msg_id, &msg);
 
             sem_lock(SEM_SHARED);
             shared->stanowiska[id_stanowiska].zajete = 0;

@@ -125,9 +125,9 @@ int main()
                 //Sygnał 3: Wznowienie normalnej pracy stanowiska
                 case 2:
                     printf("[KIEROWNIK] Normalna praca stanowiska %d\n", stanowisko);
-                    if (kill(pid, SIGCONT) == -1) 
+                    if (kill(pid, SIGRTMIN) == -1) 
                     {
-                        perror("[KIEROWNIK] Błąd wysłania SIGCONT");
+                        perror("[KIEROWNIK] Błąd wysłania SIGRTMIN");
                     }
                     break;
                     
@@ -137,6 +137,18 @@ int main()
                     sem_lock(SEM_SHARED);
                     shared->serwis_otwarty = 0;
                     shared->pozar = 1;
+
+                    for (int i = 0; i < MAX_STANOWISK; i++)
+                    {
+                        if (shared->stanowiska[i].pid_mechanika > 0)
+                        {
+                            if (kill(shared->stanowiska[i].pid_mechanika, SIGTERM) == -1)
+                            {
+                                perror("[KIEROWNIK] Błąd wysłania SIGTERM");
+                            }
+                        }
+                    }
+
                     sem_unlock(SEM_SHARED);
                     break;
             }

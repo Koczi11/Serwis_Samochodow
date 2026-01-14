@@ -88,7 +88,7 @@ int main()
     sem_unlock(SEM_SHARED);
 
     //Wysłanie do rejestracji
-    if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
+    if (send_msg(msg_id, &msg) == -1)
     {
         perror("[KIEROWCA] Błąd rejestracji");
         return 1;
@@ -107,7 +107,7 @@ int main()
         }
         sem_unlock(SEM_SHARED);
 
-        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) != -1)
+        if (recv_msg(msg_id, &msg, getpid(), IPC_NOWAIT) != -1)
         {
             //Otrzymano wycenę
             break;
@@ -138,7 +138,7 @@ int main()
     msg.mtype = MSG_DECYZJA_USLUGI;
     msg.samochod.zaakceptowano = !rezygnacja;
 
-    if (msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
+    if (send_msg(msg_id, &msg) == -1)
     {
         perror("[KIEROWCA] Błąd wysłania decyzji");
         return 1;
@@ -166,7 +166,7 @@ int main()
         }
 
         //Odbiór wiadomości zwrotnych
-        if (msgrcv(msg_id, &msg, sizeof(Samochod), getpid(), IPC_NOWAIT) == -1)
+        if (recv_msg(msg_id, &msg, getpid(), IPC_NOWAIT) == -1)
         {
             if (errno == ENOMSG)
             {
@@ -197,7 +197,7 @@ int main()
             msg.mtype = MSG_DECYZJA_DODATKOWA;
             msg.samochod.zaakceptowano = !odmowa;
 
-            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+            send_msg(msg_id, &msg);
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
 
             //Czekanie na kontynuację naprawy

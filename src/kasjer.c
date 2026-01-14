@@ -67,7 +67,7 @@ int main()
             }
 
             //Obsługa płatności klientów
-            if(msgrcv(msg_id, &msg, sizeof(Samochod), MSG_KASA, IPC_NOWAIT) != -1)
+            if(recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) != -1)
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 sleep(2); //Symulacja płatności
@@ -83,7 +83,7 @@ int main()
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.dodatkowa_usterka = 0;
                 
-                if(msgsnd(msg_id, &msg, sizeof(Samochod), 0) == -1)
+                if(send_msg(msg_id, &msg) == -1)
                 {
                     perror("[KASJER] Błąd wysłania wiadomości");
                 }
@@ -115,7 +115,7 @@ int main()
                 if (!aktywni_mechanicy() && auta_zostaly == 0)
                 {
                     //Ostanie sprawdzenie wiadomości
-                    if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_KASA, IPC_NOWAIT) == -1)
+                    if (recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) == -1)
                     {
                         printf("[KASJER] Kasa zamknięta, brak klientów\n");
                         break;

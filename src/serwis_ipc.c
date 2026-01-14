@@ -244,3 +244,54 @@ Usluga pobierz_usluge(int id)
     
     return CENNIK[id];
 }
+
+int send_msg(int msg_id, Msg *msg)
+{
+    while (1)
+    {
+        if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == 1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            else
+            {
+                perror("msgsnd failed");
+                return -1;
+            }
+        }
+
+        return 0;
+    }
+}
+
+int recv_msg(int msg_id, Msg *msg, long type, int flags)
+{
+    while (1)
+    {
+        ssize_t wynik = msgrcv(msg_id, msg, sizeof(Samochod), type, flags);
+
+        if (wynik == -1)
+        {
+            if (errno == EINTR)
+            {
+                if (flags & IPC_NOWAIT)
+                {
+                    return -1;
+                }
+
+                continue;
+            }
+
+            if (errno != ENOMSG)
+            {
+                perror("msgrcv failed");
+            }
+
+            return -1;
+        }
+
+        return 1;
+    }
+}

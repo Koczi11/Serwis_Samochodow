@@ -103,4 +103,8 @@ void sem_unlock(int num);
 void zapisz_raport(const char *tekst);
 Usluga pobierz_usluge(int id);
 
+int send_msg(int msg_id, Msg *msg);
+
+int recv_msg(int msg_id, Msg *msg, long type, int flags);
+
 #endif

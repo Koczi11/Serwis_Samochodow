@@ -40,7 +40,7 @@ int znajdz_wolne_stanowisko(const char *marka)
         if (!zajete && pid != -1)
         {
             //Oznaczamy stanowisko jako zajęte
-            zajete = 1;
+            shared->stanowiska[i].zajete = 1;
             znalezione_id = i;
             break;
         }
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
             int odebrano = 0;
 
             //Odbiór komunikatów od mechaników
-            if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_OD_MECHANIKA, IPC_NOWAIT) != -1)
+            if (recv_msg(msg_id, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
                     printf("[PRACOWNIK SERWISU %d] Mechanik ze stanowiska %d zgłosił dodatkową usterkę w aucie %d: %s\n", id_pracownika, msg.samochod.id_stanowiska_roboczego, msg.samochod.pid_kierowcy, pobierz_usluge(msg.samochod.id_dodatkowej_uslugi).nazwa);
 
                     msg.mtype = msg.samochod.pid_kierowcy;
-                    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                    send_msg(msg_id, &msg);
                 }
                 else
                 {
@@ -187,21 +187,21 @@ int main(int argc, char *argv[])
                     printf("[PRACOWNIK SERWISU %d] Auto %d ukończone przez mechanika na stanowisku %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
 
                     msg.mtype = MSG_KASA;
-                    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                    send_msg(msg_id, &msg);
                 }
 
                 continue;
             }
 
             //Odbiór decyzji o dodatkowej usterce od kierowcy
-            if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_DECYZJA_DODATKOWA, IPC_NOWAIT) != -1)
+            if (recv_msg(msg_id, &msg, MSG_DECYZJA_DODATKOWA, IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
                 printf("[PRACOWNIK SERWISU %d] Otrzymano decyzję od kierowcy %d. Przekazuję mechanikowi na stanowisko %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
 
                 //Przekazanie decyzji mechanikowi
                 msg.mtype = 100 + msg.samochod.id_stanowiska_roboczego;
-                msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                send_msg(msg_id, &msg);
                 continue;
             }
 
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
             if (otwarte)
             {
                 //Pobieramy zgłoszenie rejestracji
-                if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                if (recv_msg(msg_id, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
                 {
                     odebrano = 1;
 
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 
                     //Odesłanie wyceny
                     msg.mtype = msg.samochod.pid_kierowcy;
-                    msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                    send_msg(msg_id, &msg);
 
                     //Oczekiwanie na decyzję kierowcy
                     Msg decyzja;
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
                         }
                         sem_unlock(SEM_SHARED);
 
-                        if (msgrcv(msg_id, &decyzja, sizeof(Samochod), MSG_DECYZJA_USLUGI, IPC_NOWAIT) != -1)
+                        if (recv_msg(msg_id, &decyzja, MSG_DECYZJA_USLUGI, IPC_NOWAIT) != -1)
                         {
                             //Sprawdź czy to odpowiedź od właściwego kierowcy
                             if (decyzja.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
                             else
                             {
                                 //Nieodpowiedni kierowca, odsyłamy z powrotem
-                                msgsnd(msg_id, &decyzja, sizeof(Samochod), 0);
+                                send_msg(msg_id, &decyzja);
                             }
                         }
 
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 
                             msg.mtype = msg.samochod.pid_kierowcy;
                             msg.samochod.koszt = 0;
-                            msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                            send_msg(msg_id, &msg);
                             continue;
                         }
 
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
 
                         //Przekazanie auta do mechanika
                         msg.mtype = 100 + mechanik_id;
-                        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                        send_msg(msg_id, &msg);
                         printf("[PRACOWNIK SERWISU %d] Przekazano auto %d do mechanika %d\n", id_pracownika, msg.samochod.pid_kierowcy, mechanik_id);
                     }
                     else
@@ -349,7 +349,7 @@ int main(int argc, char *argv[])
                 if (!aktywni_mechanicy())
                 {
                     //Ostatnie sprawdzenie czy nie ma zaległych komunikatów
-                    if (msgrcv(msg_id, &msg, sizeof(Samochod), MSG_OD_MECHANIKA, IPC_NOWAIT) == -1)
+                    if (recv_msg(msg_id, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) == -1)
                     {
                         printf("[PRACOWNIK SERWISU %d] Serwis zamknięty i wszystkie prace wykonane. Koniec zmiany\n", id_pracownika);
                         break;
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
                     else
                     {
                         //Jest komunikat do obsłużenia
-                        msgsnd(msg_id, &msg, sizeof(Samochod), 0);
+                        send_msg(msg_id, &msg);
                         continue;
                     }
                 }

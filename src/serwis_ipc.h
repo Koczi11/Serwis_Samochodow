@@ -14,13 +14,21 @@
 
 //TYPY KOMUNIKATÓW
 #define MSG_REJESTRACJA 1
-#define MSG_DECYZJA_USLUGI 3
-#define MSG_DECYZJA_DODATKOWA 23
 #define MSG_KASA 30
 #define MSG_OD_MECHANIKA 40
 
+#define MSG_PRACOWNIK_BASE(id) (100 + (id) * 1000)
+#define MSG_DECYZJA_USLUGI(id) (MSG_PRACOWNIK_BASE(id) + 1)
+#define MSG_DECYZJA_DODATKOWA(id) (MSG_PRACOWNIK_BASE(id) + 2)
+
 //SEMAFORY
 #define SEM_SHARED 0                //Główny semafor do ochrony pamięci współdzielonej
+#define SEM_SERWIS_OTWARTY 1        //Semafor sygnalizujący, że serwis jest otwarty
+#define SEM_NOWA_WIADOMOSC 2        //Semafor sygnalizujący, że jest nowa wiadomość w kolejce
+#define SEM_WOLNY_MECHANIK 3        //Semafor sygnalizujący, że jest wolny mechanik
+
+#define NUM_SEM 4
+
 
 //STRUKTURY DANYCH
 
@@ -54,6 +62,7 @@ typedef struct
     int dodatkowy_czas;
 
     int ewakuacja;
+    int id_pracownika;
 }Samochod;
 
 //Stan stanowiska
@@ -106,5 +115,14 @@ Usluga pobierz_usluge(int id);
 int send_msg(int msg_id, Msg *msg);
 
 int recv_msg(int msg_id, Msg *msg, long type, int flags);
+
+void wait_serwis_otwarty();
+void signal_serwis_otwarty();
+
+void signal_nowa_wiadomosc();
+int wait_nowa_wiadomosc(int timeout_sec);
+
+void signal_wolny_mechanik();
+void wait_wolny_mechanik();
 
 #endif

@@ -34,19 +34,8 @@ int main()
     //Pętla dni pracy
     while (1)
     {
-        //Czekamy na otwarcie serwisu
-        while (1)
-        {
-            sem_lock(SEM_SHARED);
-            if (shared->serwis_otwarty && !shared->pozar)
-            {
-                sem_unlock(SEM_SHARED);
-                break;
-            }
-            sem_unlock(SEM_SHARED);
-            sleep(1);
-        }
-    
+        wait_serwis_otwarty();
+
         printf("[KASJER] Kasa otwarta\n");
 
         int dzienny_utarg = 0;
@@ -123,7 +112,7 @@ int main()
                 }
             }
 
-            usleep(100000);
+            wait_nowa_wiadomosc(0);
         }
 
         sem_lock(SEM_SHARED);

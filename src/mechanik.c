@@ -162,27 +162,16 @@ int main(int argc, char *argv[])
     //Pętla dni pracy
     while (1)
     {
-        if (jest_pozar)
+        if (jest_pozar) {
             break;
-
-        //Czekanie na otwarcie serwisu
-        int czy_otwarte = 0;
-        while (!czy_otwarte)
-        {
-            if (jest_pozar)
-                break;
-
-            sem_lock(SEM_SHARED);
-            czy_otwarte = shared->serwis_otwarty;
-            sem_unlock(SEM_SHARED);
-            if (!czy_otwarte)
-            {
-                sleep(1);
-            }
         }
 
-        if (jest_pozar)
+        //Czekanie na otwarcie serwisu
+        wait_serwis_otwarty();
+        
+        if (jest_pozar) {
             break;
+        }
 
         printf("[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d\n", getpid(), id_stanowiska);
 
@@ -194,6 +183,7 @@ int main(int argc, char *argv[])
         //Pętla obsługi aut w ciągu dnia
         while (1)
         {
+            //printf("[MECHANIK %d] Stanowisko %d czeka na auto do naprawy\n", getpid(), id_stanowiska);
             if (jest_pozar)
                 break;
 
@@ -211,26 +201,27 @@ int main(int argc, char *argv[])
             //Obsługa zamknięcia stanowiska
             if (zamknij_po)
             {
+                sem_lock(SEM_SHARED);
                 //Sprawdzenie czy są jeszcze auta do obsłużenia
                 if (recv_msg(msg_id, &msg, 100 + id_stanowiska, IPC_NOWAIT) != -1)
                 {
                     //Obsługa auta przed zamknięciem stanowiska
                     msg.mtype = MSG_REJESTRACJA;
                     msg.samochod.id_stanowiska_roboczego = -1;
-
-                    //Zwrócenie auta do kolejki oczekujących
-                    sem_lock(SEM_SHARED);
                     shared->liczba_oczekujacych_klientow++;
+
+                    printf("[MECHANIK %d] Auto %d wróciło do kolejki oczekujących\n", getpid(), msg.samochod.pid_kierowcy);
                     sem_unlock(SEM_SHARED);
 
                     if (send_msg(msg_id, &msg) == -1)
                     {
                         perror("[MECHANIK] Błąd odsyłania samochodu do kolejki");
                     }
-                    else
-                    {
-                        printf("[MECHANIK %d] Auto %d wróciło do kolejki oczekujących\n", getpid(), msg.samochod.pid_kierowcy);
-                    }
+                    signal_nowa_wiadomosc();
+                }
+                else
+                {
+                    sem_unlock(SEM_SHARED);
                 }
 
                 printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
@@ -249,12 +240,12 @@ int main(int argc, char *argv[])
                 if (errno == ENOMSG || errno == EINTR)
                 {
                     if (jest_pozar)
+                    {
                         break;
+                    }
 
-                    //Sygnał zamknięcia stanowiska podczas czekania
                     if (zamknij_po && errno != EINTR)
                     {
-                        //Zamknięcie stanowiska podczas oczekiwania
                         printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
                         sem_lock(SEM_SHARED);
                         shared->stanowiska[id_stanowiska].pid_mechanika = -1;
@@ -263,14 +254,18 @@ int main(int argc, char *argv[])
                     }
 
                     if (errno == ENOMSG)
-                        usleep(100000);
+                    {
+                        wait_nowa_wiadomosc(0);
+                    }
+
                     continue;
                 }
 
-                perror("[MECHANIK] Błąd odbioru wiadomości");
+                perror("[MECHANIK] Błąd odbierania wiadomości");
                 exit(1);
             }
 
+            printf("[MECHANIK %d] Otrzymano zlecenie naprawy auta %d\n", getpid(), msg.samochod.pid_kierowcy);
             //Rozpoczęcie naprawy auta
             sem_lock(SEM_SHARED);
             shared->stanowiska[id_stanowiska].zajete = 1;
@@ -290,7 +285,12 @@ int main(int argc, char *argv[])
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
-                send_msg(msg_id, &msg);
+
+                if (send_msg(msg_id, &msg) == -1)
+                {
+                    perror("[MECHANIK] Błąd wysyłania wiadomości o ewakuacji");
+                }
+                signal_nowa_wiadomosc();
 
                 sem_lock(SEM_SHARED);
                 shared->stanowiska[id_stanowiska].zajete = 0;
@@ -340,11 +340,12 @@ int main(int argc, char *argv[])
                         else
                         {
                             send_msg(msg_id, &odp);
+                            signal_nowa_wiadomosc();
                         }
                     }
                     else
                     {
-                        usleep(100000);
+                        wait_nowa_wiadomosc(0);
                     }
                 }
 
@@ -404,10 +405,13 @@ int main(int argc, char *argv[])
             msg.samochod.id_stanowiska_roboczego = id_stanowiska;
             
             send_msg(msg_id, &msg);
+            signal_nowa_wiadomosc();
 
             sem_lock(SEM_SHARED);
             shared->stanowiska[id_stanowiska].zajete = 0;
             sem_unlock(SEM_SHARED);
+
+            signal_wolny_mechanik();
         }
 
         sem_lock(SEM_SHARED);
@@ -421,7 +425,6 @@ int main(int argc, char *argv[])
         }
 
         printf("[MECHANIK %d] Czekam na kolejny dzień...\n", getpid());
-        sleep(1);
     }
     return 0;
 }

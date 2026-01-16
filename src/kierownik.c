@@ -55,6 +55,10 @@ int main()
                 printf("[KIEROWNIK] Godzina %d:00. Otwieram serwis\n", godzina);
                 shared->serwis_otwarty = 1;
                 otwarte = 1;
+
+                sem_unlock(SEM_SHARED);
+                signal_serwis_otwarty();
+                sem_lock(SEM_SHARED);
             }
         }
         else
@@ -137,6 +141,8 @@ int main()
                     sem_lock(SEM_SHARED);
                     shared->serwis_otwarty = 0;
                     shared->pozar = 1;
+                    shared->auta_w_serwisie = 0;
+                    shared->liczba_oczekujacych_klientow = 0;
 
                     for (int i = 0; i < MAX_STANOWISK; i++)
                     {

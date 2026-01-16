@@ -22,6 +22,7 @@ int main()
     msg.samochod.zaakceptowano = 0;
     msg.samochod.dodatkowa_usterka = 0;
     msg.samochod.ewakuacja = 0;
+    msg.samochod.id_pracownika = -1;
 
     //Losowanie marki samochodu
     char marka = 'A' + rand() % 26;
@@ -54,7 +55,6 @@ int main()
 
         if (otwarte)
         {
-            //Serwis jest otwarty
             break;
         }
         else
@@ -66,11 +66,11 @@ int main()
                 czas_do_otwarcia += 24;
             }
 
-            //Kierowca czeka tylko jeśli usługa jest krytyczna lub czas oczekiwania jest krótki (<= 1 godzina)
+            //Kierowca czeka tylko jeśli usługa jest krytyczna lub czas oczekiwania jest krótki
             if (u.krytyczna || czas_do_otwarcia <= LIMIT_OCZEKIWANIA)
             {
                 printf("[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...\n", getpid());
-                sleep(2);
+                wait_serwis_otwarty();
                 continue;
             }
             else
@@ -93,6 +93,7 @@ int main()
         perror("[KIEROWCA] Błąd rejestracji");
         return 1;
     }
+    signal_nowa_wiadomosc();
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
 
     //Odbiór wyceny
@@ -119,7 +120,7 @@ int main()
             return 1;
         }
 
-        usleep(100000);
+        wait_nowa_wiadomosc(0);
     }
 
     //Sprawdzenie czy serwis może wykonać naprawę (z powodu zamknięcia lub pożaru)
@@ -135,7 +136,7 @@ int main()
     //2% szans na rezygnację
     int rezygnacja = (rand() % 100) < 2;
 
-    msg.mtype = MSG_DECYZJA_USLUGI;
+    msg.mtype = MSG_DECYZJA_USLUGI(msg.samochod.id_pracownika);
     msg.samochod.zaakceptowano = !rezygnacja;
 
     if (send_msg(msg_id, &msg) == -1)
@@ -143,6 +144,7 @@ int main()
         perror("[KIEROWCA] Błąd wysłania decyzji");
         return 1;
     }
+    signal_nowa_wiadomosc();
 
     if (rezygnacja)
     {
@@ -170,7 +172,7 @@ int main()
         {
             if (errno == ENOMSG)
             {
-                usleep(100000);
+                wait_nowa_wiadomosc(0);
                 continue;
             }
             perror("[KIEROWCA] Błąd odbioru wiadomości");
@@ -194,7 +196,7 @@ int main()
             //20% szans na odrzucenie dodatkowej usterki
             int odmowa = (rand() % 100) < 20;
 
-            msg.mtype = MSG_DECYZJA_DODATKOWA;
+            msg.mtype = MSG_DECYZJA_DODATKOWA(msg.samochod.id_pracownika);
             msg.samochod.zaakceptowano = !odmowa;
 
             send_msg(msg_id, &msg);

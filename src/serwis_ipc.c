@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 //Definicje zmiennych globalnych
 int shm_id = -1;    //Pamięć współdzielona
@@ -79,7 +80,7 @@ void init_ipc(int is_parent)
         }
 
         //Semafory
-        sem_id = semget(key_sem, 1, IPC_CREAT | 0600);
+        sem_id = semget(key_sem, NUM_SEM, IPC_CREAT | 0600);
         if (sem_id == -1)
         {
             perror("semget failed");
@@ -90,6 +91,24 @@ void init_ipc(int is_parent)
         if (semctl(sem_id, SEM_SHARED, SETVAL, 1) == -1)
         {
             perror("semctl SEM_SHARED failed");
+            exit(1);
+        }
+
+        if (semctl(sem_id, SEM_SERWIS_OTWARTY, SETVAL, 0) == -1)
+        {
+            perror("semctl SEM_SERWIS_OTWARTY failed");
+            exit(1);
+        }
+
+        if (semctl(sem_id, SEM_NOWA_WIADOMOSC, SETVAL, 0) == -1)
+        {
+            perror("semctl SEM_NOWA_WIADOMOSC failed");
+            exit(1);
+        }
+
+        if (semctl(sem_id, SEM_WOLNY_MECHANIK, SETVAL, 0) == -1)
+        {
+            perror("semctl SEM_WOLNY_MECHANIK failed");
             exit(1);
         }
     
@@ -104,7 +123,7 @@ void init_ipc(int is_parent)
     else
     {
         //Procesy potomne dołączają do istniejących zasobów
-        sem_id = semget(key_sem, 1, 0600);
+        sem_id = semget(key_sem, NUM_SEM, 0600);
         if (sem_id == -1)
         {
             perror("semget failed");
@@ -249,7 +268,7 @@ int send_msg(int msg_id, Msg *msg)
 {
     while (1)
     {
-        if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == 1)
+        if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == -1)
         {
             if (errno == EINTR)
             {
@@ -292,6 +311,138 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
             return -1;
         }
 
-        return 1;
+        return 0;
+    }
+}
+
+void wait_serwis_otwarty()
+{
+    struct sembuf sb = {SEM_SERWIS_OTWARTY, -1, 0};
+
+    while (1)
+    {
+        sem_lock(SEM_SHARED);
+        int otwarte = shared->serwis_otwarty && !shared->pozar;
+        sem_unlock(SEM_SHARED);
+
+        if (otwarte)
+            return;
+
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+                continue;
+
+        }
+    }
+}
+
+void signal_serwis_otwarty()
+{
+    struct sembuf sb = {SEM_SERWIS_OTWARTY, 1, IPC_NOWAIT};
+
+    for (int i = 0; i < 50; i++)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EAGAIN)
+                break;
+
+        }
+    }
+}
+
+void signal_nowa_wiadomosc()
+{
+    struct sembuf sb = {SEM_NOWA_WIADOMOSC, 1, IPC_NOWAIT};
+
+    for (int i = 0; i < 10; i++)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EAGAIN)
+                break;
+
+        }
+    }
+}
+
+int wait_nowa_wiadomosc(int timeout_sec)
+{
+    struct sembuf sb = {SEM_NOWA_WIADOMOSC, -1, 0};
+
+    if (timeout_sec > 0)
+    {
+        sb.sem_flg = IPC_NOWAIT;
+
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                //Brak wiadomości
+                return -1;
+            }
+
+            return -1;
+        }
+
+        return 0;
+    }
+    else
+    {
+        while (1)
+        {
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                if (errno == EINTR)
+                {
+                    sem_lock(SEM_SHARED);
+                    int pozar = shared->pozar;
+                    sem_unlock(SEM_SHARED);
+
+                    if (pozar)
+                    {
+                        return -1;
+                    }
+
+                    continue;
+                }
+
+                return -1;
+            }
+
+            return 0;
+        }
+    }
+}
+
+void signal_wolny_mechanik()
+{
+    struct sembuf sb = {SEM_WOLNY_MECHANIK, 1, IPC_NOWAIT};
+
+    for (int i = 0; i < 5; i++)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EAGAIN)
+                break;
+
+        }
+    }
+}
+
+void wait_wolny_mechanik()
+{
+    struct sembuf sb = {SEM_WOLNY_MECHANIK, -1, 0};
+
+    while (1)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+                continue;
+
+        }
+        return;
     }
 }

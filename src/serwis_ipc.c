@@ -226,6 +226,24 @@ void zapisz_raport(const char *tekst)
     close(fd);
 }
 
+void zapisz_log(const char *tekst)
+{
+    int fd = open("log.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0)
+    {
+        perror("open log.txt failed");
+        return;
+    }
+
+    time_t t = time(NULL);
+    char buf[256];
+
+    int len = snprintf(buf, sizeof(buf), "[%ld] %s\n", t, tekst);
+
+    write(fd, buf, len);
+    close(fd);
+}
+
 //Stała tablica usług (Cennik)
 static const Usluga CENNIK[MAX_USLUG] = 
 {

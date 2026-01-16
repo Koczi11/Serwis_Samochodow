@@ -112,6 +112,7 @@ void sem_lock(int num);
 void sem_unlock(int num);
 
 void zapisz_raport(const char *tekst);
+void zapisz_log(const char *tekst);
 Usluga pobierz_usluge(int id);
 
 int send_msg(int msg_id, Msg *msg);

@@ -126,12 +126,16 @@ int main(int argc, char *argv[])
 
     Msg msg;
 
+    char buffer[256];
+
     //Złoszenie obecności w pamięci współdzielonej
     sem_lock(SEM_SHARED);
     shared->stanowiska[id_stanowiska].pid_mechanika = getpid();
     sem_unlock(SEM_SHARED);
 
     printf("[MECHANIK %d] Stanowisko %d (Marki : %s)\n", getpid(), id_stanowiska, (id_stanowiska == 7) ? "U i Y" : "A, E, I, O, U i Y" );
+    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Stanowisko %d (Marki : %s)", getpid(), id_stanowiska, (id_stanowiska == 7) ? "U i Y" : "A, E, I, O, U i Y" );
+    zapisz_log(buffer);
 
     //Pętla dni pracy
     while (1)
@@ -150,6 +154,8 @@ int main(int argc, char *argv[])
         }
 
         printf("[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d\n", getpid(), id_stanowiska);
+        snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d", getpid(), id_stanowiska);
+        zapisz_log(buffer);
 
         //Reset stanu stanowiska na początek dnia
         sem_lock(SEM_SHARED);
@@ -173,6 +179,9 @@ int main(int argc, char *argv[])
             if (!otwarte)
             {
                 printf("[MECHANIK %d] Serwis zamknięty, zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Serwis zamknięty, zamykam stanowisko %d", getpid(), id_stanowiska);
+                zapisz_log(buffer);
+                
                 break;
             }
 
@@ -189,6 +198,9 @@ int main(int argc, char *argv[])
                     shared->liczba_oczekujacych_klientow++;
 
                     printf("[MECHANIK %d] Auto %d wróciło do kolejki oczekujących\n", getpid(), msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Auto %d wróciło do kolejki oczekujących", getpid(), msg.samochod.pid_kierowcy);
+                    zapisz_log(buffer);
+                    
                     sem_unlock(SEM_SHARED);
 
                     if (send_msg(msg_id, &msg) == -1)
@@ -203,6 +215,8 @@ int main(int argc, char *argv[])
                 }
 
                 printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Zamykam stanowisko %d", getpid(), id_stanowiska);
+                zapisz_log(buffer);
 
                 //Zamknięcie stanowiska
                 sem_lock(SEM_SHARED);
@@ -225,6 +239,9 @@ int main(int argc, char *argv[])
                     if (zamknij_po && errno != EINTR)
                     {
                         printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
+                        snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Zamykam stanowisko %d", getpid(), id_stanowiska);
+                        zapisz_log(buffer);
+
                         sem_lock(SEM_SHARED);
                         shared->stanowiska[id_stanowiska].pid_mechanika = -1;
                         sem_unlock(SEM_SHARED);
@@ -244,12 +261,17 @@ int main(int argc, char *argv[])
             }
 
             printf("[MECHANIK %d] Otrzymano zlecenie naprawy auta %d\n", getpid(), msg.samochod.pid_kierowcy);
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Otrzymano zlecenie naprawy auta %d", getpid(), msg.samochod.pid_kierowcy);
+            zapisz_log(buffer);
+            
             //Rozpoczęcie naprawy auta
             sem_lock(SEM_SHARED);
             shared->stanowiska[id_stanowiska].zajete = 1;
             sem_unlock(SEM_SHARED);
 
             printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Naprawiam auto %d (Marka: %s)", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
+            zapisz_log(buffer);
 
             double czas_calkowity = (double)msg.samochod.czas_naprawy;
             int part1 = czas_calkowity / 2.0;
@@ -260,6 +282,9 @@ int main(int argc, char *argv[])
             {
                 //Procedura ewakuacji podczas pożaru
                 printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
+                zapisz_log(buffer);
+                
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
@@ -283,6 +308,8 @@ int main(int argc, char *argv[])
                 Usluga dodatkowa = pobierz_usluge(dodatkowa_id);
 
                 printf("[MECHANIK %d] Wykryto dodatkową usterkę w aucie %d: %s\n", getpid(), msg.samochod.pid_kierowcy, dodatkowa.nazwa);
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Wykryto dodatkową usterkę w aucie %d: %s", getpid(), msg.samochod.pid_kierowcy, dodatkowa.nazwa);
+                zapisz_log(buffer);
 
                 msg.samochod.dodatkowa_usterka = 1;
                 msg.samochod.id_dodatkowej_uslugi = dodatkowa_id;
@@ -296,6 +323,8 @@ int main(int argc, char *argv[])
                 send_msg(msg_id, &msg);
 
                 printf("[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu\n", getpid());
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu", getpid());
+                zapisz_log(buffer);
 
                 Msg odp;
 
@@ -331,6 +360,9 @@ int main(int argc, char *argv[])
                 {
                     //Procedura ewakuacji podczas pożaru
                     printf("[MECHANIK %d] Pożar! Nie czekam na decyzję. Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Nie czekam na decyzję. Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
+                    zapisz_log(buffer);
+                    
                     msg.mtype = msg.samochod.pid_kierowcy;
                     msg.samochod.ewakuacja = 1;
                     msg.samochod.koszt = 0;
@@ -345,12 +377,17 @@ int main(int argc, char *argv[])
                 if(msg.samochod.zaakceptowano)
                 {
                     printf("[MECHANIK %d] Dodatkowa naprawa zaakceptowana (+%ds)\n", getpid(), msg.samochod.dodatkowy_czas);
+                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Dodatkowa naprawa zaakceptowana (+%ds)", getpid(), msg.samochod.dodatkowy_czas);
+                    zapisz_log(buffer);
+
                     czas_calkowity += (double)msg.samochod.dodatkowy_czas;
                     msg.samochod.koszt += msg.samochod.dodatkowy_koszt;
                 }
                 else
                 {
                     printf("[MECHANIK %d] Dodatkowa naprawa odrzucona\n", getpid());
+                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Dodatkowa naprawa odrzucona", getpid());
+                    zapisz_log(buffer);
                 }
             }
 
@@ -365,6 +402,9 @@ int main(int argc, char *argv[])
             if (jest_pozar)
             {
                 printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
+                snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
+                zapisz_log(buffer);
+
                 msg.mtype = msg.samochod.pid_kierowcy;
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
@@ -378,6 +418,8 @@ int main(int argc, char *argv[])
 
             //Koniec naprawy
             printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
+            zapisz_log(buffer);
 
             msg.mtype = MSG_OD_MECHANIKA;
             msg.samochod.dodatkowa_usterka = 0;
@@ -400,10 +442,15 @@ int main(int argc, char *argv[])
         if (jest_pozar)
         {
             printf("[MECHANIK %d] Uciekam przed pożarem!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
+            zapisz_log(buffer);
+
             break;
         }
 
         printf("[MECHANIK %d] Czekam na kolejny dzień...\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Czekam na kolejny dzień...", getpid());
+        zapisz_log(buffer);
     }
     return 0;
 }

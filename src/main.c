@@ -89,7 +89,7 @@ int main()
         }
     }
 
-    sleep(1);
+    //sleep(1);
 
     //Kierownik
     if (fork() == 0)
@@ -104,7 +104,8 @@ int main()
     //Kierowcy
     while (running)
     {
-        usleep(2000000 + (rand() % 3000000));
+        //usleep(2000000 + (rand() % 3000000));
+        safe_wait_seconds(2 + (rand() % 4));
 
         if (!running)
             break;

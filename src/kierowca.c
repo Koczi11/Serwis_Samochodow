@@ -17,6 +17,7 @@ int main()
     srand(getpid() ^ time(NULL));
 
     Msg msg;
+    char buffer[256];
     msg.mtype = MSG_REJESTRACJA;
     msg.samochod.pid_kierowcy = getpid();
     msg.samochod.zaakceptowano = 0;
@@ -35,13 +36,17 @@ int main()
 
     Usluga u = pobierz_usluge(wybrana_usluga);
 
-    printf("[KIEROWCA %d] Marka samochodu: %s\n", getpid(), msg.samochod.marka);
-    printf("[KIEROWCA %d] Potrzebna naprawa: %s\n", getpid(), u.nazwa);
+    printf("[KIEROWCA %d] Marka samochodu: %s. Potrzebna naprawa: %s\n", getpid(), msg.samochod.marka, u.nazwa);
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Marka samochodu: %s. Potrzebna naprawa: %s", getpid(), msg.samochod.marka, u.nazwa);
+    zapisz_log(buffer);
 
     //Sprawdzenie czy marka jest obsługiwana
     if (!marka_obslugiwana(msg.samochod.marka))
     {
         printf("[KIEROWCA %d] Marka nieobsługiwana, odjeżdżam\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Marka nieobsługiwana, odjeżdżam", getpid());
+        zapisz_log(buffer);
+
         return 0;
     }
 
@@ -70,12 +75,18 @@ int main()
             if (u.krytyczna || czas_do_otwarcia <= LIMIT_OCZEKIWANIA)
             {
                 printf("[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...\n", getpid());
+                snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...", getpid());
+                zapisz_log(buffer);
+
                 wait_serwis_otwarty();
                 continue;
             }
             else
             {
                 printf("[KIEROWCA %d] Serwis zamknięty, odjeżdżam\n", getpid());
+                snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis zamknięty, odjeżdżam", getpid());
+                zapisz_log(buffer);
+
                 return 0;
             }
         }
@@ -85,6 +96,9 @@ int main()
     sem_lock(SEM_SHARED);
     shared->liczba_oczekujacych_klientow++;
     printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d", getpid(), shared->liczba_oczekujacych_klientow);
+    zapisz_log(buffer);
+
     sem_unlock(SEM_SHARED);
 
     //Wysłanie do rejestracji
@@ -95,6 +109,8 @@ int main()
     }
     signal_nowa_wiadomosc();
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Samochód wysłany do rejestracji", getpid());
+    zapisz_log(buffer);
 
     //Odbiór wyceny
     while (1)
@@ -104,6 +120,9 @@ int main()
         {
             sem_unlock(SEM_SHARED);
             printf("[KIEROWCA %d] Pożar! Uciekam z serwisu!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Pożar! Uciekam z serwisu!", getpid());
+            zapisz_log(buffer);
+
             return 0;
         }
         sem_unlock(SEM_SHARED);
@@ -127,10 +146,15 @@ int main()
     if (msg.samochod.koszt == 0 && !msg.samochod.ewakuacja)
     {
         printf("[KIEROWCA %d] Serwis nie może wykonać naprawy, odjeżdżam\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis nie może wykonać naprawy, odjeżdżam", getpid());
+        zapisz_log(buffer);
+
         return 0;
     }
 
     printf("[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s\n", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
+    zapisz_log(buffer);
 
     //Decyzja kierowcy
     //2% szans na rezygnację
@@ -149,10 +173,14 @@ int main()
     if (rezygnacja)
     {
         printf("[KIEROWCA %d] Rezygnuję z naprawy, odjeżdżam\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Rezygnuję z naprawy, odjeżdżam", getpid());
+        zapisz_log(buffer);
         return 0;
     }
 
     printf("[KIEROWCA %d] Akceptuję wycenę. Czekam na naprawę...\n", getpid());
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Akceptuję wycenę. Czekam na naprawę...", getpid());
+    zapisz_log(buffer);
 
     //Oczekiwanie na zakończenie naprawy
     while (1)
@@ -164,6 +192,8 @@ int main()
         if (pozar)
         {
             printf("[KIEROWCA %d] Widzę ogień! Biorę kluczyki z lady i uciekam\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Widzę ogień! Biorę kluczyki z lady i uciekam", getpid());
+            zapisz_log(buffer);
             break;
         }
 
@@ -183,6 +213,9 @@ int main()
         if (msg.samochod.ewakuacja)
         {
             printf("[KIEROWCA %d] Mechanik oddał kluczyki z powodu pożaru! Uciekam!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Mechanik oddał kluczyki z powodu pożaru! Uciekam!", getpid());
+            zapisz_log(buffer);
+
             break;
         }
 
@@ -192,6 +225,8 @@ int main()
             Usluga dodatkowa = pobierz_usluge(msg.samochod.id_dodatkowej_uslugi); 
 
             printf("[KIEROWCA %d] Pracownik Serwisu zgłosił dodatkową usterkę! %s, +%d PLN, +%d s\n", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Pracownik Serwisu zgłosił dodatkową usterkę! %s, +%d PLN, +%d s", getpid(), dodatkowa.nazwa, msg.samochod.dodatkowy_koszt, msg.samochod.dodatkowy_czas);
+            zapisz_log(buffer);
 
             //20% szans na odrzucenie dodatkowej usterki
             int odmowa = (rand() % 100) < 20;
@@ -201,6 +236,8 @@ int main()
 
             send_msg(msg_id, &msg);
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
+            zapisz_log(buffer);
 
             //Czekanie na kontynuację naprawy
             continue;
@@ -209,6 +246,9 @@ int main()
         {
             //Koniec naprawy
             printf("[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam\n", getpid(), msg.samochod.koszt);
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam", getpid(), msg.samochod.koszt);
+            zapisz_log(buffer);
+            
             break;
         }
     }

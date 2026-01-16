@@ -28,6 +28,7 @@ kasjer: src/kasjer.c serwis_ipc.o src/serwis_ipc.h
 
 clean:
 	rm -f $(ALL) *.o raport.txt
+	rm -f $(ALL) *.o log.txt
 
 run: all
 	./serwis

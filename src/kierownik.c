@@ -16,7 +16,11 @@ int main()
 
     srand(time(NULL));
 
+    char buffer[256];
+
     printf("[KIEROWNIK] Uruchomiony. Zaczynamy dzień!\n");
+    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Uruchomiony. Zaczynamy dzień!");
+    zapisz_log(buffer);
 
     sem_lock(SEM_SHARED);
     shared->aktualna_godzina = 6;
@@ -56,6 +60,9 @@ int main()
             if (!otwarte && !pozar)
             {
                 printf("[KIEROWNIK] Godzina %d:00. Otwieram serwis\n", godzina);
+                snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Otwieram serwis", godzina);
+                zapisz_log(buffer);
+
                 shared->serwis_otwarty = 1;
                 otwarte = 1;
 
@@ -69,6 +76,9 @@ int main()
             if (otwarte)
             {
                 printf("[KIEROWNIK] Godzina %d:00. Zamykam serwis\n", godzina);
+                snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Zamykam serwis", godzina);
+                zapisz_log(buffer);
+
                 shared->serwis_otwarty = 0;
                 otwarte = 0;
             }
@@ -80,11 +90,15 @@ int main()
         {
             if (pozar)
             {
-                printf("[KIEROWNIK] Godzina %d:00. Trwa sprzątanie po pożarze\n", godzina); 
+                printf("[KIEROWNIK] Godzina %d:00. Trwa sprzątanie po pożarze\n", godzina);
+                snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Trwa sprzątanie po pożarze", godzina);
+                zapisz_log(buffer);
             }
             else
             {
                 printf("[KIEROWNIK] Godzina %d:00. Serwis jest zamknięty\n", godzina); 
+                snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Serwis jest zamknięty", godzina);
+                zapisz_log(buffer);
             }
             continue;
         }
@@ -114,6 +128,9 @@ int main()
                 //Sygnał 1: Zamknięcie stanowiska
                 case 0:
                     printf("[KIEROWNIK] Zamknięcie stanowiska %d\n", stanowisko);
+                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Zamknięcie stanowiska %d", stanowisko);
+                    zapisz_log(buffer);
+
                     if (kill(pid, SIGUSR1) == -1) 
                     {
                         perror("[KIEROWNIK] Błąd wysłania SIGUSR1");
@@ -123,6 +140,9 @@ int main()
                 //Sygnał 2: Przyspieszenie pracy stanowiska
                 case 1:
                     printf("[KIEROWNIK] Przyspieszenie stanowiska %d\n", stanowisko);
+                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Przyspieszenie stanowiska %d", stanowisko);
+                    zapisz_log(buffer);
+
                     if (kill(pid, SIGUSR2) == -1) 
                     {
                         perror("[KIEROWNIK] Błąd wysłania SIGUSR2");
@@ -132,6 +152,9 @@ int main()
                 //Sygnał 3: Wznowienie normalnej pracy stanowiska
                 case 2:
                     printf("[KIEROWNIK] Normalna praca stanowiska %d\n", stanowisko);
+                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Normalna praca stanowiska %d", stanowisko);
+                    zapisz_log(buffer);
+
                     if (kill(pid, SIGRTMIN) == -1) 
                     {
                         perror("[KIEROWNIK] Błąd wysłania SIGRTMIN");
@@ -141,6 +164,9 @@ int main()
                 //Sygnał 4: Pożar w serwisie
                 case 3:
                     printf("[KIEROWNIK] POŻAR!\n");
+                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] POŻAR!");
+                    zapisz_log(buffer);
+                    
                     sem_lock(SEM_SHARED);
                     shared->serwis_otwarty = 0;
                     shared->pozar = 1;

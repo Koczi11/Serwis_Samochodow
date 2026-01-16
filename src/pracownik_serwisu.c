@@ -83,7 +83,11 @@ int main(int argc, char *argv[])
 
     Msg msg;
 
+    char buffer[256];
+
     printf("[PRACOWNIK SERWISU %d] Uruchomiony\n", id_pracownika);
+    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Uruchomiony", id_pracownika);
+    zapisz_log(buffer);
 
     //Pętla dni pracy
     while (1)
@@ -98,6 +102,8 @@ int main(int argc, char *argv[])
         }
 
         printf("[PRACOWNIK SERWISU %d] Serwis otwarty, zaczynam pracę\n", id_pracownika);
+        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis otwarty, zaczynam pracę", id_pracownika);
+        zapisz_log(buffer);
 
         //Pętla obsługi klientów w ciągu dnia
         while (1)
@@ -110,6 +116,8 @@ int main(int argc, char *argv[])
             if (pozar)
             {
                 printf("[PRACOWNIK SERWISU %d] Pożar!\n", id_pracownika);
+                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar!", id_pracownika);
+                zapisz_log(buffer);
                 break;
             }
 
@@ -125,11 +133,15 @@ int main(int argc, char *argv[])
                     {
                         czy_aktywny = 1;
                         printf("[PRACOWNIK SERWISU %d] Kolejka %d >= %d. Otwieram 2 stanowisko\n", id_pracownika, q_len, K1);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kolejka %d >= %d. Otwieram 2 stanowisko", id_pracownika, q_len, K1);
+                        zapisz_log(buffer);
                     }
                     else if (czy_aktywny && q_len <= 2)
                     {
                         czy_aktywny = 0;
                         printf("[PRACOWNIK SERWISU %d] Kolejka %d <= 2. Zamykam 2 stanowisko\n", id_pracownika, q_len);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kolejka %d <= 2. Zamykam 2 stanowisko", id_pracownika, q_len);
+                        zapisz_log(buffer);
                     }
                 }
                 //Logika dla Pracownika Serwisu 2 (stanowisko 3)
@@ -139,11 +151,15 @@ int main(int argc, char *argv[])
                     {
                         czy_aktywny = 1;
                         printf("[PRACOWNIK SERWISU %d] Kolejka %d >= %d. Otwieram 3 stanowisko\n", id_pracownika, q_len, K2);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kolejka %d >= %d. Otwieram 3 stanowisko", id_pracownika, q_len, K2);
+                        zapisz_log(buffer);
                     }
                     else if (czy_aktywny && q_len <= 3)
                     {
                         czy_aktywny = 0;
                         printf("[PRACOWNIK SERWISU %d] Kolejka %d <= 3. Zamykam 3 stanowisko\n", id_pracownika, q_len);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kolejka %d <= 3. Zamykam 3 stanowisko", id_pracownika, q_len);
+                        zapisz_log(buffer);
                     }
                 }
             }
@@ -166,6 +182,8 @@ int main(int argc, char *argv[])
                 {
                     //Mechanik zgłosił dodatkową usterkę
                     printf("[PRACOWNIK SERWISU %d] Mechanik ze stanowiska %d zgłosił dodatkową usterkę w aucie %d: %s\n", id_pracownika, msg.samochod.id_stanowiska_roboczego, msg.samochod.pid_kierowcy, pobierz_usluge(msg.samochod.id_dodatkowej_uslugi).nazwa);
+                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Mechanik ze stanowiska %d zgłosił dodatkową usterkę w aucie %d: %s", id_pracownika, msg.samochod.id_stanowiska_roboczego, msg.samochod.pid_kierowcy, pobierz_usluge(msg.samochod.id_dodatkowej_uslugi).nazwa);
+                    zapisz_log(buffer);
 
                     msg.mtype = msg.samochod.pid_kierowcy;
                     send_msg(msg_id, &msg);
@@ -175,6 +193,8 @@ int main(int argc, char *argv[])
                 {
                     //Mechanik zakończył naprawę
                     printf("[PRACOWNIK SERWISU %d] Auto %d ukończone przez mechanika na stanowisku %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
+                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Auto %d ukończone przez mechanika na stanowisku %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
+                    zapisz_log(buffer);
 
                     msg.mtype = MSG_KASA;
                     send_msg(msg_id, &msg);
@@ -189,6 +209,8 @@ int main(int argc, char *argv[])
             {
                 odebrano = 1;
                 printf("[PRACOWNIK SERWISU %d] Otrzymano decyzję od kierowcy %d. Przekazuję mechanikowi na stanowisko %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
+                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano decyzję od kierowcy %d. Przekazuję mechanikowi na stanowisko %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
+                zapisz_log(buffer);
 
                 //Przekazanie decyzji mechanikowi
                 msg.mtype = 100 + msg.samochod.id_stanowiska_roboczego;
@@ -216,9 +238,12 @@ int main(int argc, char *argv[])
                     sem_unlock(SEM_SHARED);
 
                     printf("[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
+                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
+                    zapisz_log(buffer);
 
                     //Symulacja czasu obsługi przy rejestracji
-                    sleep(1); 
+                    //sleep(1);
+                    safe_wait_seconds(1);
 
                     Usluga u = pobierz_usluge(msg.samochod.id_uslugi);
 
@@ -230,6 +255,8 @@ int main(int argc, char *argv[])
                     msg.samochod.id_stanowiska_roboczego = -1;
 
                     printf("[PRACOWNIK SERWISU %d] Wycena dla kierowcy %d: koszt %d, czas naprawy %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.koszt, msg.samochod.czas_naprawy);
+                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Wycena dla kierowcy %d: koszt %d, czas naprawy %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.koszt, msg.samochod.czas_naprawy);
+                    zapisz_log(buffer);
 
                     //Odesłanie wyceny
                     msg.mtype = msg.samochod.pid_kierowcy;
@@ -247,6 +274,9 @@ int main(int argc, char *argv[])
                         {
                             sem_unlock(SEM_SHARED);
                             printf("[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d\n", id_pracownika, msg.samochod.pid_kierowcy);
+                            snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d", id_pracownika, msg.samochod.pid_kierowcy);
+                            zapisz_log(buffer);
+                            
                             odebrano_decyzje = -1;
                             break;
                         }
@@ -280,12 +310,16 @@ int main(int argc, char *argv[])
                     if (msg.samochod.zaakceptowano)
                     {
                         printf("[PRACOWNIK SERWISU %d] Kierowca %d zaakceptował usługę\n", id_pracownika, msg.samochod.pid_kierowcy);
-                        
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kierowca %d zaakceptował usługę", id_pracownika, msg.samochod.pid_kierowcy);
+                        zapisz_log(buffer);
+
                         sem_lock(SEM_SHARED);
                         if (!shared->serwis_otwarty || shared->pozar)
                         {
                             sem_unlock(SEM_SHARED);
                             printf("[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
+                            snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
+                            zapisz_log(buffer);
 
                             msg.mtype = msg.samochod.pid_kierowcy;
                             msg.samochod.koszt = 0;
@@ -299,6 +333,7 @@ int main(int argc, char *argv[])
 
                         //Znajdowanie wolnego stanowiska
                         int mechanik_id = -1;
+                        int poinforowano = 0;
 
                         while (mechanik_id == -1)
                         {
@@ -307,6 +342,9 @@ int main(int argc, char *argv[])
                             {
                                 sem_unlock(SEM_SHARED);
                                 printf("[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d\n", id_pracownika, msg.samochod.pid_kierowcy);
+                                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d", id_pracownika, msg.samochod.pid_kierowcy);
+                                zapisz_log(buffer);
+                                
                                 break;
                             }
                             sem_unlock(SEM_SHARED);
@@ -315,7 +353,15 @@ int main(int argc, char *argv[])
 
                             if (mechanik_id == -1)
                             {
-                                printf("[PRACOWNIK SERWISU %d] Brak wolnych mechaników dla %s, czekam...\n", id_pracownika, msg.samochod.marka);
+                                if (!poinforowano)
+                                {
+                                    printf("[PRACOWNIK SERWISU %d] Brak wolnych mechaników dla %s, czekam...\n", id_pracownika, msg.samochod.marka);
+                                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Brak wolnych mechaników dla %s, czekam...", id_pracownika, msg.samochod.marka);
+                                    zapisz_log(buffer);
+
+                                    poinforowano = 1;
+                                }
+                                
                                 wait_wolny_mechanik();
                             }
                         }
@@ -332,24 +378,49 @@ int main(int argc, char *argv[])
                         send_msg(msg_id, &msg);
                         signal_nowa_wiadomosc();
                         printf("[PRACOWNIK SERWISU %d] Przekazano auto %d do mechanika %d\n", id_pracownika, msg.samochod.pid_kierowcy, mechanik_id);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Przekazano auto %d do mechanika %d", id_pracownika, msg.samochod.pid_kierowcy, mechanik_id);
+                        zapisz_log(buffer);
                     }
                     else
                     {
                         printf("[PRACOWNIK SERWISU %d] Kierowca %d odrzucił usługę\n", id_pracownika, msg.samochod.pid_kierowcy);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kierowca %d odrzucił usługę", id_pracownika, msg.samochod.pid_kierowcy);
+                        zapisz_log(buffer);
                     }
                     continue;
                 }
             }
 
             //Zamykanie zmiany jeśli serwis jest zamknięty i brak aktywnych mechaników
-            if (!odebrano && !otwarte)
+            if (!otwarte)
             {
-                if (!aktywni_mechanicy())
+                if (recv_msg(msg_id, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                {
+                    printf("[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
+                    zapisz_log(buffer);
+
+                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.samochod.koszt = 0;
+                    send_msg(msg_id, &msg);
+
+                    sem_lock(SEM_SHARED);
+                    if (shared->liczba_oczekujacych_klientow > 0)
+                        shared->liczba_oczekujacych_klientow--;
+                    sem_unlock(SEM_SHARED);
+
+                    odebrano = 1;
+                    continue;
+                }
+
+                if (!odebrano && !aktywni_mechanicy())
                 {
                     //Ostatnie sprawdzenie czy nie ma zaległych komunikatów
                     if (recv_msg(msg_id, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) == -1)
                     {
                         printf("[PRACOWNIK SERWISU %d] Serwis zamknięty i wszystkie prace wykonane. Koniec zmiany\n", id_pracownika);
+                        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty i wszystkie prace wykonane. Koniec zmiany", id_pracownika);
+                        zapisz_log(buffer);
                         break;
                     }
                     else
@@ -368,6 +439,8 @@ int main(int argc, char *argv[])
         }
 
         printf("[PRACOWNIK SERWISU %d] Koniec zmiany. Czekam na kolejny dzień...\n", id_pracownika);
+        snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Koniec zmiany. Czekam na kolejny dzień...", id_pracownika);
+        zapisz_log(buffer);
     }
     return 0;
 }

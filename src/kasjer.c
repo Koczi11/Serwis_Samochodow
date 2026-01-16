@@ -37,6 +37,8 @@ int main()
         wait_serwis_otwarty();
 
         printf("[KASJER] Kasa otwarta\n");
+        snprintf(buffer, sizeof(buffer), "[KASJER] Kasa otwarta");
+        zapisz_log(buffer);
 
         int dzienny_utarg = 0;
         zapisz_raport("[KASJER] Kasa otwarta. Rozpoczynamy nowy dzień.");
@@ -52,6 +54,9 @@ int main()
             if (pozar)
             {
                 printf("[KASJER] Pożar!\n");
+                snprintf(buffer, sizeof(buffer), "[KASJER] Pożar!");
+                zapisz_log(buffer);
+
                 break;
             }
 
@@ -59,7 +64,9 @@ int main()
             if(recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) != -1)
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
-                sleep(2); //Symulacja płatności
+                snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
+                zapisz_log(buffer);
+                safe_wait_seconds(2);
 
                 //Aktualizacja dziennego utargu
                 dzienny_utarg += msg.samochod.koszt;
@@ -79,6 +86,8 @@ int main()
                 else
                 {
                     printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Płatność zakończona dla klienta %d", msg.samochod.pid_kierowcy);
+                    zapisz_log(buffer);
 
                     //Dekrementacja liczniy aut w serwisie
                     sem_lock(SEM_SHARED);
@@ -107,6 +116,9 @@ int main()
                     if (recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) == -1)
                     {
                         printf("[KASJER] Kasa zamknięta, brak klientów\n");
+                        snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta o godzinie %d, brak klientów", shared->aktualna_godzina);
+                        zapisz_log(buffer);
+                        
                         break;
                     }
                 }

@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "serwis_ipc.h"
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -112,6 +114,12 @@ void init_ipc(int is_parent)
             exit(1);
         }
     
+        if (semctl(sem_id, SEM_TIMER, SETVAL, 0) == -1)
+        {
+            perror("semctl SEM_TIMER failed");
+            exit(1);
+        }
+
         //Kolejka komunikatów
         msg_id = msgget(key_msg, IPC_CREAT | 0600);
         if (msg_id == -1)
@@ -445,4 +453,44 @@ void wait_wolny_mechanik()
         }
         return;
     }
+}
+
+double get_time_seconds()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+//Funkcja bezpiecznego oczekiwania z timeoutem
+int safe_wait_seconds(double seconds)
+{
+    if (seconds <= 0)
+    {
+        return 0;
+    }
+
+    struct sembuf sb;
+    sb.sem_num = SEM_TIMER;
+    sb.sem_op = -1;
+    sb.sem_flg = 0;
+
+    struct timespec timeout;
+    timeout.tv_sec = (time_t)seconds;
+    timeout.tv_nsec = (long)((seconds - timeout.tv_sec) * 1e9);
+
+    if (semtimedop(sem_id, &sb, 1, &timeout) == -1)
+    {
+        if (errno == EAGAIN)
+        {
+            return 0;
+        }
+
+        if (errno == EINTR)
+        {
+            return -1;
+        }
+    }
+
+    return 0;
 }

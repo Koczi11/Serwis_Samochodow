@@ -27,7 +27,9 @@
 #define SEM_NOWA_WIADOMOSC 2        //Semafor sygnalizujący, że jest nowa wiadomość w kolejce
 #define SEM_WOLNY_MECHANIK 3        //Semafor sygnalizujący, że jest wolny mechanik
 
-#define NUM_SEM 4
+#define SEM_TIMER 4                 //Semafor do implementacji bezpiecznego oczekiwania z timeoutem
+
+#define NUM_SEM 5
 
 
 //STRUKTURY DANYCH
@@ -124,5 +126,8 @@ int wait_nowa_wiadomosc(int timeout_sec);
 
 void signal_wolny_mechanik();
 void wait_wolny_mechanik();
+
+int safe_wait_seconds(double seconds);
+double get_time_seconds();
 
 #endif

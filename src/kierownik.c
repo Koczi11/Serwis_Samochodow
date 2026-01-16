@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <time.h>
 
+#define SEC_PER_H 5.0
+
 int main()
 {
     //Dołączenie do IPC
@@ -24,12 +26,13 @@ int main()
 
     while (1)
     {
-        //Symulacja upływu czasu (1 godzina = 5 sekund)
-        sleep(5);
-
+        if (safe_wait_seconds(SEC_PER_H) == -1)
+        {
+            //Przerwanie
+        }
+        
         sem_lock(SEM_SHARED);
 
-        //Inkrementacja godziny i pętla doby
         shared->aktualna_godzina++;
         if (shared->aktualna_godzina > 23)
         {

@@ -66,51 +66,25 @@ void sig_pozar(int sig)
 //Uwzględnia tryb przyspieszony oraz ewentualny pożar
 void wykonaj_prace(int czas_pracy)
 {
-    if (przyspieszony)
-    {
-        czas_pracy /= 2;
-    }
+    double wykonano = 0.0;
+    double krok = 0.1;
 
-    if (czas_pracy < 1)
-    {
-        czas_pracy = 1;
-    }
-
-    //Pętla sleep z obsługą przerwań
-    while (czas_pracy > 0)
+    while (wykonano < czas_pracy)
     {
         if (jest_pozar)
         {
-            return;
-        }
-
-        unsigned int unslept = sleep(czas_pracy);
-
-        if (jest_pozar)
-        {
-            return;
-        }
-
-        if (unslept == 0)
-        {
-            //Cały czas minął poprawnie
             break;
         }
-        else
-        {
-            //Przerwano sleep
-            czas_pracy = unslept;
 
-            //Dostosowanie czasu pracy w trybie przyspieszonym
-            if (przyspieszony)
+        if (safe_wait_seconds(krok) == -1)
+        {
+            if (jest_pozar)
             {
-                czas_pracy /= 2;
-                if (czas_pracy == 0)
-                {
-                    czas_pracy = 1;
-                }
+                break;
             }
         }
+
+        wykonano += (przyspieszony ? krok * 2.0 : krok);
     }
 }
 
@@ -162,14 +136,16 @@ int main(int argc, char *argv[])
     //Pętla dni pracy
     while (1)
     {
-        if (jest_pozar) {
+        if (jest_pozar)
+        {
             break;
         }
 
         //Czekanie na otwarcie serwisu
         wait_serwis_otwarty();
         
-        if (jest_pozar) {
+        if (jest_pozar)
+        {
             break;
         }
 
@@ -185,7 +161,9 @@ int main(int argc, char *argv[])
         {
             //printf("[MECHANIK %d] Stanowisko %d czeka na auto do naprawy\n", getpid(), id_stanowiska);
             if (jest_pozar)
+            {
                 break;
+            }
 
             //Sprawdzenie czy serwis jest nadal otwarty
             sem_lock(SEM_SHARED);
@@ -273,8 +251,8 @@ int main(int argc, char *argv[])
 
             printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
 
-            int czas_bazowy = msg.samochod.czas_naprawy;
-            int part1 = czas_bazowy / 2;
+            double czas_calkowity = (double)msg.samochod.czas_naprawy;
+            int part1 = czas_calkowity / 2.0;
 
             wykonaj_prace(part1);
 
@@ -367,7 +345,7 @@ int main(int argc, char *argv[])
                 if(msg.samochod.zaakceptowano)
                 {
                     printf("[MECHANIK %d] Dodatkowa naprawa zaakceptowana (+%ds)\n", getpid(), msg.samochod.dodatkowy_czas);
-                    czas_bazowy += msg.samochod.dodatkowy_czas;
+                    czas_calkowity += (double)msg.samochod.dodatkowy_czas;
                     msg.samochod.koszt += msg.samochod.dodatkowy_koszt;
                 }
                 else
@@ -377,12 +355,13 @@ int main(int argc, char *argv[])
             }
 
             //Dokończenie pracy nad autem
-            int czas_calkowity = czas_bazowy;
-            int part2 = czas_calkowity - part1;
+            double part2 = czas_calkowity - part1;
 
             if (part2 > 0)
+            {
                 wykonaj_prace(part2);
-
+            }
+            
             if (jest_pozar)
             {
                 printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);

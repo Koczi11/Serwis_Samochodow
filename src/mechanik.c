@@ -24,7 +24,10 @@ void sig_zamknij(int sig)
     (void)sig;
     zamknij_po = 1;
     const char *msg = "[MECHANIK] Otrzymano sygnał zamknięcia stanowiska po obsłudze\n";
-    write(STDOUT_FILENO, msg, strlen(msg));
+    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+    {
+        perror("write failed");
+    }
 }
 
 void sig_przyspiesz(int sig)
@@ -34,12 +37,18 @@ void sig_przyspiesz(int sig)
     {
         przyspieszony = 1;
         const char *msg = "[MECHANIK] Otrzymano sygnał przyspieszenia stanowiska\n";
-        write(STDOUT_FILENO, msg, strlen(msg));
+        if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+        {
+            perror("write failed");
+        }
     }
     else
     {
         const char *msg = "[MECHANIK] Stanowisko już jest w trybie przyspieszonym\n";
-        write(STDOUT_FILENO, msg, strlen(msg));
+        if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+        {
+            perror("write failed");
+        }
     }
 }
 
@@ -50,7 +59,10 @@ void sig_normalnie(int sig)
     {
         przyspieszony = 0;
         const char *msg = "[MECHANIK] Otrzymano sygnał powrotu do normalnego trybu stanowiska\n";
-        write(STDOUT_FILENO, msg, strlen(msg));
+        if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+        {
+            perror("write failed");
+        }
     }
 }
 
@@ -59,7 +71,10 @@ void sig_pozar(int sig)
     (void)sig;
     jest_pozar = 1;
     const char *msg = "[MECHANIK] POŻAR!\n";
-    write(STDOUT_FILENO, msg, strlen(msg));
+    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+    {
+        perror("write failed");
+    }
 }
 
 //Funkcja wykonująca pracę mechanika
@@ -127,6 +142,8 @@ int main(int argc, char *argv[])
     Msg msg;
 
     char buffer[256];
+    int dodatkowy_koszt_zaakceptowany = 0;
+    int dodatkowy_id_zaakceptowany = -1;
 
     //Złoszenie obecności w pamięci współdzielonej
     sem_lock(SEM_SHARED);
@@ -165,7 +182,6 @@ int main(int argc, char *argv[])
         //Pętla obsługi aut w ciągu dnia
         while (1)
         {
-            //printf("[MECHANIK %d] Stanowisko %d czeka na auto do naprawy\n", getpid(), id_stanowiska);
             if (jest_pozar)
             {
                 break;
@@ -244,6 +260,7 @@ int main(int argc, char *argv[])
 
                         sem_lock(SEM_SHARED);
                         shared->stanowiska[id_stanowiska].pid_mechanika = -1;
+                        shared->stanowiska[id_stanowiska].zajete = 0;
                         sem_unlock(SEM_SHARED);
                         exit(0);
                     }
@@ -263,6 +280,9 @@ int main(int argc, char *argv[])
             printf("[MECHANIK %d] Otrzymano zlecenie naprawy auta %d\n", getpid(), msg.samochod.pid_kierowcy);
             snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Otrzymano zlecenie naprawy auta %d", getpid(), msg.samochod.pid_kierowcy);
             zapisz_log(buffer);
+
+            dodatkowy_koszt_zaakceptowany = 0;
+            dodatkowy_id_zaakceptowany = -1;
             
             //Rozpoczęcie naprawy auta
             sem_lock(SEM_SHARED);
@@ -321,6 +341,7 @@ int main(int argc, char *argv[])
                 //Wysyłamy do Pracownika Serwisu
                 msg.mtype = MSG_OD_MECHANIKA;
                 send_msg(msg_id, &msg);
+                signal_nowa_wiadomosc();
 
                 printf("[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu\n", getpid());
                 snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu", getpid());
@@ -367,6 +388,7 @@ int main(int argc, char *argv[])
                     msg.samochod.ewakuacja = 1;
                     msg.samochod.koszt = 0;
                     send_msg(msg_id, &msg);
+                    signal_nowa_wiadomosc();
 
                     sem_lock(SEM_SHARED);
                     shared->stanowiska[id_stanowiska].zajete = 0;
@@ -381,13 +403,16 @@ int main(int argc, char *argv[])
                     zapisz_log(buffer);
 
                     czas_calkowity += (double)msg.samochod.dodatkowy_czas;
-                    msg.samochod.koszt += msg.samochod.dodatkowy_koszt;
+                    dodatkowy_koszt_zaakceptowany = msg.samochod.dodatkowy_koszt;
+                    dodatkowy_id_zaakceptowany = msg.samochod.id_dodatkowej_uslugi;
                 }
                 else
                 {
                     printf("[MECHANIK %d] Dodatkowa naprawa odrzucona\n", getpid());
                     snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Dodatkowa naprawa odrzucona", getpid());
                     zapisz_log(buffer);
+                    dodatkowy_koszt_zaakceptowany = 0;
+                    dodatkowy_id_zaakceptowany = -1;
                 }
             }
 
@@ -409,6 +434,7 @@ int main(int argc, char *argv[])
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
                 send_msg(msg_id, &msg);
+                signal_nowa_wiadomosc();
 
                 sem_lock(SEM_SHARED);
                 shared->stanowiska[id_stanowiska].zajete = 0;
@@ -417,13 +443,15 @@ int main(int argc, char *argv[])
             }
 
             //Koniec naprawy
-            printf("[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
-            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Koniec naprawy auta %d. Koszt: %d PLN", getpid(), msg.samochod.pid_kierowcy, msg.samochod.koszt);
+            printf("[MECHANIK %d] Koniec naprawy auta %d. Przekazuję zakres prac\n", getpid(), msg.samochod.pid_kierowcy);
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Koniec naprawy auta %d. Przekazuję zakres prac", getpid(), msg.samochod.pid_kierowcy);
             zapisz_log(buffer);
 
             msg.mtype = MSG_OD_MECHANIKA;
             msg.samochod.dodatkowa_usterka = 0;
             msg.samochod.id_stanowiska_roboczego = id_stanowiska;
+            msg.samochod.dodatkowy_koszt = dodatkowy_koszt_zaakceptowany;
+            msg.samochod.id_dodatkowej_uslugi = dodatkowy_id_zaakceptowany;
             
             send_msg(msg_id, &msg);
             signal_nowa_wiadomosc();

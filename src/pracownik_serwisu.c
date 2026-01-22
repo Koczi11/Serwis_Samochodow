@@ -196,11 +196,32 @@ int main(int argc, char *argv[])
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Auto %d ukończone przez mechanika na stanowisku %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
                     zapisz_log(buffer);
 
+                    //Pracownik serwisu ustala ostateczny koszt na podstawie zakresu wykonanych prac
+                    int koszt_podstawowy = pobierz_usluge(msg.samochod.id_uslugi).koszt;
+                    int koszt_dodatkowy = (msg.samochod.dodatkowy_koszt > 0) ? msg.samochod.dodatkowy_koszt : 0;
+                    msg.samochod.koszt = koszt_podstawowy + koszt_dodatkowy;
+
                     msg.mtype = MSG_KASA;
                     send_msg(msg_id, &msg);
                     signal_nowa_wiadomosc();
                 }
 
+                continue;
+            }
+
+            //Odbiór potwierdzenia płatności z kasy i przekazanie do kierowcy
+            if (recv_msg(msg_id, &msg, MSG_POTWIERDZENIE_PLATNOSCI(id_pracownika), IPC_NOWAIT) != -1)
+            {
+                odebrano = 1;
+                msg.mtype = msg.samochod.pid_kierowcy;
+                if (send_msg(msg_id, &msg) == -1)
+                {
+                    perror("[PRACOWNIK SERWISU] Błąd wysłania potwierdzenia płatności do kierowcy");
+                }
+                else
+                {
+                    signal_nowa_wiadomosc();
+                }
                 continue;
             }
 
@@ -295,6 +316,7 @@ int main(int argc, char *argv[])
                             {
                                 //Nieodpowiedni kierowca, odsyłamy z powrotem
                                 send_msg(msg_id, &decyzja);
+                                signal_nowa_wiadomosc();
                             }
                         }
 
@@ -324,6 +346,7 @@ int main(int argc, char *argv[])
                             msg.mtype = msg.samochod.pid_kierowcy;
                             msg.samochod.koszt = 0;
                             send_msg(msg_id, &msg);
+                            signal_nowa_wiadomosc();
                             continue;
                         }
 
@@ -403,6 +426,7 @@ int main(int argc, char *argv[])
                     msg.mtype = msg.samochod.pid_kierowcy;
                     msg.samochod.koszt = 0;
                     send_msg(msg_id, &msg);
+                    signal_nowa_wiadomosc();
 
                     sem_lock(SEM_SHARED);
                     if (shared->liczba_oczekujacych_klientow > 0)

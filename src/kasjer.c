@@ -76,7 +76,7 @@ int main()
                 zapisz_raport(buffer);
 
                 //Odsyłamy potwierdzenie płatności do kierowcy
-                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI(msg.samochod.id_pracownika);
                 msg.samochod.dodatkowa_usterka = 0;
                 
                 if(send_msg(msg_id, &msg) == -1)
@@ -85,6 +85,7 @@ int main()
                 }
                 else
                 {
+                    signal_nowa_wiadomosc();
                     printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
                     snprintf(buffer, sizeof(buffer), "[KASJER] Płatność zakończona dla klienta %d", msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);

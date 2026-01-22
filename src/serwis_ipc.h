@@ -17,9 +17,10 @@
 #define MSG_KASA 30
 #define MSG_OD_MECHANIKA 40
 
-#define MSG_PRACOWNIK_BASE(id) (100 + (id) * 1000)
+#define MSG_PRACOWNIK_BASE(id) (10000 + (id) * 1000)
 #define MSG_DECYZJA_USLUGI(id) (MSG_PRACOWNIK_BASE(id) + 1)
 #define MSG_DECYZJA_DODATKOWA(id) (MSG_PRACOWNIK_BASE(id) + 2)
+#define MSG_POTWIERDZENIE_PLATNOSCI(id) (MSG_PRACOWNIK_BASE(id) + 3)
 
 //SEMAFORY
 #define SEM_SHARED 0                //Główny semafor do ochrony pamięci współdzielonej
@@ -129,6 +130,5 @@ void signal_wolny_mechanik();
 void wait_wolny_mechanik();
 
 int safe_wait_seconds(double seconds);
-double get_time_seconds();
 
 #endif

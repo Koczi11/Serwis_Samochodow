@@ -146,8 +146,6 @@ void init_ipc(int is_parent)
         }
     }
 
-    //Log dla debugowania
-    //printf(is_parent? "[INIT] Utworzono IPC\n" : "[INIT] Dolaczono do IPC\n");
 }
 
 //Czyszczenie zasobów IPC
@@ -156,25 +154,37 @@ void cleanup_ipc()
     //Odłączanie pamięci współdzielonej
     if (shared != NULL)
     {
-        shmdt(shared);
+        if (shmdt(shared) == -1)
+        {
+            perror("shmdt failed");
+        }
     }
 
     //Usuwanie segmentu pamięci współdzielonej
     if (shm_id != -1)
     {
-        shmctl(shm_id, IPC_RMID, NULL);
+        if (shmctl(shm_id, IPC_RMID, NULL) == -1)
+        {
+            perror("shmctl IPC_RMID failed");
+        }
     }
 
     //Usuwanie zbioru semaforów
     if (sem_id != -1)
     {
-        semctl(sem_id, 0, IPC_RMID);
+        if (semctl(sem_id, 0, IPC_RMID) == -1)
+        {
+            perror("semctl IPC_RMID failed");
+        }
     }
 
     //Usuwanie kolejki komunikatów
     if (msg_id != -1)
     {
-        msgctl(msg_id, IPC_RMID, NULL);
+        if (msgctl(msg_id, IPC_RMID, NULL) == -1)
+        {
+            perror("msgctl IPC_RMID failed");
+        }
     }
 
     printf("[CLEANUP] IPC zwolnione poprawnie\n");
@@ -197,14 +207,38 @@ int marka_obslugiwana(const char *m)
 void sem_lock(int num)
 {
     struct sembuf sb = {num, -1, 0};
-    semop(sem_id, &sb, 1);
+    while (1)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            perror("semop lock failed");
+            exit(1);
+        }
+        return;
+    }
 }
 
 //Podnosi semafor
 void sem_unlock(int num)
 {
     struct sembuf sb = {num, 1, 0};
-    semop(sem_id, &sb, 1);
+    while (1)
+    {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            perror("semop unlock failed");
+            exit(1);
+        }
+        return;
+    }
 }
 
 //Zapisuje log do pliku tekstowego raport.txt
@@ -222,8 +256,14 @@ void zapisz_raport(const char *tekst)
 
     int len = snprintf(buf, sizeof(buf), "[%ld] %s\n", t, tekst);
 
-    write(fd, buf, len);
-    close(fd);
+    if (write(fd, buf, len) == -1)
+    {
+        perror("write raport.txt failed");
+    }
+    if (close(fd) == -1)
+    {
+        perror("close raport.txt failed");
+    }
 }
 
 void zapisz_log(const char *tekst)
@@ -240,8 +280,14 @@ void zapisz_log(const char *tekst)
 
     int len = snprintf(buf, sizeof(buf), "[%ld] %s\n", t, tekst);
 
-    write(fd, buf, len);
-    close(fd);
+    if (write(fd, buf, len) == -1)
+    {
+        perror("write log.txt failed");
+    }
+    if (close(fd) == -1)
+    {
+        perror("close log.txt failed");
+    }
 }
 
 //Stała tablica usług (Cennik)
@@ -290,6 +336,7 @@ Usluga pobierz_usluge(int id)
     return CENNIK[id];
 }
 
+//Wysyła komunikat do kolejki
 int send_msg(int msg_id, Msg *msg)
 {
     while (1)
@@ -311,6 +358,7 @@ int send_msg(int msg_id, Msg *msg)
     }
 }
 
+//Odbiera komunikat z kolejki
 int recv_msg(int msg_id, Msg *msg, long type, int flags)
 {
     while (1)
@@ -341,6 +389,7 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
     }
 }
 
+//Oczekuje na otwarcie serwisu
 void wait_serwis_otwarty()
 {
     struct sembuf sb = {SEM_SERWIS_OTWARTY, -1, 0};
@@ -358,11 +407,12 @@ void wait_serwis_otwarty()
         {
             if (errno == EINTR)
                 continue;
-
+            perror("semop SEM_SERWIS_OTWARTY wait failed");
         }
     }
 }
 
+//Sygnalizuje otwarcie serwisu
 void signal_serwis_otwarty()
 {
     struct sembuf sb = {SEM_SERWIS_OTWARTY, 1, IPC_NOWAIT};
@@ -373,11 +423,12 @@ void signal_serwis_otwarty()
         {
             if (errno == EAGAIN)
                 break;
-
+            perror("semop SEM_SERWIS_OTWARTY signal failed");
         }
     }
 }
 
+//Sygnalizuje nową wiadomość
 void signal_nowa_wiadomosc()
 {
     struct sembuf sb = {SEM_NOWA_WIADOMOSC, 1, IPC_NOWAIT};
@@ -388,11 +439,12 @@ void signal_nowa_wiadomosc()
         {
             if (errno == EAGAIN)
                 break;
-
+            perror("semop SEM_NOWA_WIADOMOSC signal failed");
         }
     }
 }
 
+//Oczekuje na nową wiadomość
 int wait_nowa_wiadomosc(int timeout_sec)
 {
     struct sembuf sb = {SEM_NOWA_WIADOMOSC, -1, 0};
@@ -408,7 +460,7 @@ int wait_nowa_wiadomosc(int timeout_sec)
                 //Brak wiadomości
                 return -1;
             }
-
+            perror("semop SEM_NOWA_WIADOMOSC wait failed");
             return -1;
         }
 
@@ -433,7 +485,7 @@ int wait_nowa_wiadomosc(int timeout_sec)
 
                     continue;
                 }
-
+                perror("semop SEM_NOWA_WIADOMOSC wait failed");
                 return -1;
             }
 
@@ -442,6 +494,7 @@ int wait_nowa_wiadomosc(int timeout_sec)
     }
 }
 
+//Sygnalizuje wolnego mechanika
 void signal_wolny_mechanik()
 {
     struct sembuf sb = {SEM_WOLNY_MECHANIK, 1, IPC_NOWAIT};
@@ -452,11 +505,12 @@ void signal_wolny_mechanik()
         {
             if (errno == EAGAIN)
                 break;
-
+            perror("semop SEM_WOLNY_MECHANIK signal failed");
         }
     }
 }
 
+//Oczekuje na wolnego mechanika
 void wait_wolny_mechanik()
 {
     struct sembuf sb = {SEM_WOLNY_MECHANIK, -1, 0};
@@ -467,20 +521,14 @@ void wait_wolny_mechanik()
         {
             if (errno == EINTR)
                 continue;
-
+            perror("semop SEM_WOLNY_MECHANIK wait failed");
         }
         return;
     }
 }
 
-double get_time_seconds()
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec / 1e9;
-}
-
-//Funkcja bezpiecznego oczekiwania z timeoutem
+//Funkcja bezpiecznego oczekiwania z timeoutem.
+//Używa semtimedop na semaforze SEM_TIMER jako mechanizmu uśpienia.
 int safe_wait_seconds(double seconds)
 {
     if (seconds <= 0)
@@ -508,6 +556,9 @@ int safe_wait_seconds(double seconds)
         {
             return -1;
         }
+
+        perror("semtimedop failed");
+        return -1;
     }
 
     return 0;

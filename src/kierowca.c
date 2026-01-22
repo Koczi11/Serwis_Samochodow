@@ -235,6 +235,7 @@ int main()
             msg.samochod.zaakceptowano = !odmowa;
 
             send_msg(msg_id, &msg);
+            signal_nowa_wiadomosc();
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
             snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
             zapisz_log(buffer);

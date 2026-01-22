@@ -23,6 +23,10 @@ void handle_sigchld(int sig)
 
     //Czyszczenie zakończonych procesów potomnych
     while (waitpid(-1, NULL, WNOHANG) > 0);
+    if (errno != ECHILD && errno != 0)
+    {
+        perror("waitpid failed");
+    }
 
     errno = saved_errno;
 }
@@ -33,18 +37,33 @@ void handle_sigterm(int sig)
     (void) sig;
 
     const char *msg = "\n[MAIN] Zamknięcie serwisu\n";
-    write(STDOUT_FILENO, msg, strlen(msg));
+    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+    {
+        perror("write failed");
+    }
     running = 0;
 }
 
 int main()
 {
     //Konfiguracja obsługi sygnałów
-    signal(SIGTERM, handle_sigterm);
-    signal(SIGINT, handle_sigterm);
+    if (signal(SIGTERM, handle_sigterm) == SIG_ERR)
+    {
+        perror("signal SIGTERM failed");
+        exit(1);
+    }
+    if (signal(SIGINT, handle_sigterm) == SIG_ERR)
+    {
+        perror("signal SIGINT failed");
+        exit(1);
+    }
 
     //Zapobieganie powstawaniu procesów zombie
-    signal(SIGCHLD, handle_sigchld);
+    if (signal(SIGCHLD, handle_sigchld) == SIG_ERR)
+    {
+        perror("signal SIGCHLD failed");
+        exit(1);
+    }
 
     srand(time(NULL));
 
@@ -70,7 +89,7 @@ int main()
     {
         if (fork() == 0)
         {
-            sprintf(arg_buff, "%d", i);
+            snprintf(arg_buff, sizeof(arg_buff), "%d", i);
             execl("./pracownik_serwisu", "pracownik_serwisu", arg_buff, NULL);
             perror("execl pracownik_serwisu failed");
             exit(1);
@@ -82,14 +101,12 @@ int main()
     {
         if (fork() == 0)
         {
-            sprintf(arg_buff, "%d", i);
+            snprintf(arg_buff, sizeof(arg_buff), "%d", i);
             execl("./mechanik", "mechanik", arg_buff, NULL);
             perror("execl mechanik failed");
             exit(1);
         }
     }
-
-    //sleep(1);
 
     //Kierownik
     if (fork() == 0)
@@ -104,7 +121,6 @@ int main()
     //Kierowcy
     while (running)
     {
-        //usleep(2000000 + (rand() % 3000000));
         safe_wait_seconds(2 + (rand() % 4));
 
         if (!running)
@@ -121,13 +137,23 @@ int main()
     printf("[MAIN] Kończenie pracy...\n");
 
     //Ignorowanie SIGTERM w main, aby kill(0) nas nie zabił
-    signal(SIGTERM, SIG_IGN);
+    if (signal(SIGTERM, SIG_IGN) == SIG_ERR)
+    {
+        perror("signal SIGTERM ignore failed");
+    }
 
     //Zamykanie procesów potomnych
-    kill(0, SIGTERM);
+    if (kill(0, SIGTERM) == -1)
+    {
+        perror("kill failed");
+    }
 
     //Czekanie na zakończenie procesów stałych
     while(wait(NULL) > 0);
+    if (errno != ECHILD)
+    {
+        perror("wait failed");
+    }
 
     //Czyszczenie zasobów IPC
     cleanup_ipc();

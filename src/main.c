@@ -22,8 +22,11 @@ void handle_sigchld(int sig)
     int saved_errno = errno;
 
     //Czyszczenie zakończonych procesów potomnych
-    while (waitpid(-1, NULL, WNOHANG) > 0);
-    if (errno != ECHILD && waitpid(-1, NULL, WNOHANG) == -1)
+    int status = 0;
+    pid_t pid;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0);
+    
+    if (pid == -1 && errno != ECHILD)
     {
         perror("waitpid failed");
     }

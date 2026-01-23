@@ -470,15 +470,26 @@ int wait_nowa_wiadomosc(int timeout_sec)
     {
         while (1)
         {
+            sem_lock(SEM_SHARED);
+            int pozar = shared->pozar;
+            int otwarte = shared->serwis_otwarty;
+            sem_unlock(SEM_SHARED);
+
+            if (pozar || !otwarte)
+            {
+                return -1;
+            }
+
             if (semop(sem_id, &sb, 1) == -1)
             {
                 if (errno == EINTR)
                 {
                     sem_lock(SEM_SHARED);
-                    int pozar = shared->pozar;
+                    pozar = shared->pozar;
+                    otwarte = shared->serwis_otwarty;
                     sem_unlock(SEM_SHARED);
 
-                    if (pozar)
+                    if (pozar || !otwarte)
                     {
                         return -1;
                     }
@@ -517,10 +528,32 @@ void wait_wolny_mechanik()
 
     while (1)
     {
+        sem_lock(SEM_SHARED);
+        int pozar = shared->pozar;
+        int otwarte = shared->serwis_otwarty;
+        sem_unlock(SEM_SHARED);
+
+        if (pozar || !otwarte)
+        {
+            return;
+        }
+
         if (semop(sem_id, &sb, 1) == -1)
         {
             if (errno == EINTR)
+            {
+                sem_lock(SEM_SHARED);
+                pozar = shared->pozar;
+                otwarte = shared->serwis_otwarty;
+                sem_unlock(SEM_SHARED);
+
+                if (pozar || !otwarte)
+                {
+                    return;
+                }
+
                 continue;
+            }
             perror("semop SEM_WOLNY_MECHANIK wait failed");
         }
         return;

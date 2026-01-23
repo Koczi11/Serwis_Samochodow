@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Mechanik ze stanowiska %d zgłosił dodatkową usterkę w aucie %d: %s", id_pracownika, msg.samochod.id_stanowiska_roboczego, msg.samochod.pid_kierowcy, pobierz_usluge(msg.samochod.id_dodatkowej_uslugi).nazwa);
                     zapisz_log(buffer);
 
-                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                     send_msg(msg_id, &msg);
                     signal_nowa_wiadomosc();
                 }
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
             if (recv_msg(msg_id, &msg, MSG_POTWIERDZENIE_PLATNOSCI(id_pracownika), IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
-                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                 if (send_msg(msg_id, &msg) == -1)
                 {
                     perror("[PRACOWNIK SERWISU] Błąd wysłania potwierdzenia płatności do kierowcy");
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
                     zapisz_log(buffer);
 
                     //Odesłanie wyceny
-                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                     send_msg(msg_id, &msg);
                     signal_nowa_wiadomosc();
 
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
                             snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
                             zapisz_log(buffer);
 
-                            msg.mtype = msg.samochod.pid_kierowcy;
+                            msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                             msg.samochod.koszt = 0;
                             send_msg(msg_id, &msg);
                             signal_nowa_wiadomosc();
@@ -423,7 +423,7 @@ int main(int argc, char *argv[])
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);
 
-                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                     msg.samochod.koszt = 0;
                     send_msg(msg_id, &msg);
                     signal_nowa_wiadomosc();

@@ -17,6 +17,10 @@
 #define MSG_KASA 30
 #define MSG_OD_MECHANIKA 40
 
+//Typy dla komunikatów kierowców (unikamy kolizji z innymi mtype)
+#define MSG_KIEROWCA_BASE 50000
+#define MSG_KIEROWCA(pid) (MSG_KIEROWCA_BASE + (pid))
+
 #define MSG_PRACOWNIK_BASE(id) (10000 + (id) * 1000)
 #define MSG_DECYZJA_USLUGI(id) (MSG_PRACOWNIK_BASE(id) + 1)
 #define MSG_DECYZJA_DODATKOWA(id) (MSG_PRACOWNIK_BASE(id) + 2)

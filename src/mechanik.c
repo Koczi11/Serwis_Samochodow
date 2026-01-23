@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
                 snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
                 zapisz_log(buffer);
                 
-                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
 
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
                     snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Nie czekam na decyzję. Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);
                     
-                    msg.mtype = msg.samochod.pid_kierowcy;
+                    msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                     msg.samochod.ewakuacja = 1;
                     msg.samochod.koszt = 0;
                     send_msg(msg_id, &msg);
@@ -430,7 +430,7 @@ int main(int argc, char *argv[])
                 snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
                 zapisz_log(buffer);
 
-                msg.mtype = msg.samochod.pid_kierowcy;
+                msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                 msg.samochod.ewakuacja = 1;
                 msg.samochod.koszt = 0;
                 send_msg(msg_id, &msg);

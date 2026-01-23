@@ -127,7 +127,7 @@ int main()
         }
         sem_unlock(SEM_SHARED);
 
-        if (recv_msg(msg_id, &msg, getpid(), IPC_NOWAIT) != -1)
+        if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) != -1)
         {
             //Otrzymano wycenę
             break;
@@ -198,7 +198,7 @@ int main()
         }
 
         //Odbiór wiadomości zwrotnych
-        if (recv_msg(msg_id, &msg, getpid(), IPC_NOWAIT) == -1)
+        if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) == -1)
         {
             if (errno == ENOMSG)
             {

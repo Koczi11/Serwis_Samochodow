@@ -87,6 +87,7 @@ typedef struct
     int serwis_otwarty;
     int aktualna_godzina;
     int pozar;
+    int reset_po_pozarze;
     int liczba_oczekujacych_klientow;
     int aktywne_okienka_obslugi;
     int auta_w_serwisie;
@@ -132,6 +133,9 @@ int wait_nowa_wiadomosc(int timeout_sec);
 
 void signal_wolny_mechanik();
 void wait_wolny_mechanik();
+
+void drain_msg_queue();
+void clear_wakeup_sems();
 
 int safe_wait_seconds(double seconds);
 

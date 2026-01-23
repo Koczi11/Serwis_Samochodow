@@ -58,6 +58,13 @@ int main()
         {
             shared->pozar = 0;
             pozar = 0;
+
+            if (shared->reset_po_pozarze)
+            {
+                shared->auta_w_serwisie = 0;
+                shared->liczba_oczekujacych_klientow = 0;
+                shared->reset_po_pozarze = 0;
+            }
         }
 
         //Decyzja o otwarciu/zamknięciu serwisu
@@ -176,10 +183,13 @@ int main()
                     sem_lock(SEM_SHARED);
                     shared->serwis_otwarty = 0;
                     shared->pozar = 1;
-                    shared->auta_w_serwisie = 0;
-                    shared->liczba_oczekujacych_klientow = 0;
+                    shared->reset_po_pozarze = 1;
 
                     sem_unlock(SEM_SHARED);
+
+                    //Czyścimy zaległe komunikaty i semafory budzące
+                    drain_msg_queue();
+                    clear_wakeup_sems();
 
                     //Wyślij sygnał pożaru do całej grupy procesów
                     if (kill(0, SIGUSR1) == -1)

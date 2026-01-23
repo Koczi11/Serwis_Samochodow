@@ -70,6 +70,7 @@ void init_ipc(int is_parent)
     {
         shared->serwis_otwarty = 0;
         shared->pozar = 0;
+        shared->reset_po_pozarze = 0;
         shared->liczba_oczekujacych_klientow = 0;
         shared->aktywne_okienka_obslugi = 1;
         shared->auta_w_serwisie = 0;
@@ -399,7 +400,16 @@ void wait_serwis_otwarty()
         if (semop(sem_id, &sb, 1) == -1)
         {
             if (errno == EINTR)
+            {
+                sem_lock(SEM_SHARED);
+                int pozar = shared->pozar;
+                sem_unlock(SEM_SHARED);
+
+                if (pozar)
+                    return;
+
                 continue;
+            }
             perror("semop SEM_SERWIS_OTWARTY wait failed");
             continue;
         }
@@ -491,6 +501,16 @@ int wait_nowa_wiadomosc(int timeout_sec)
             {
                 if (errno == EINTR)
                 {
+                    sem_lock(SEM_SHARED);
+                    int pozar = shared->pozar;
+                    int otwarte = shared->serwis_otwarty;
+                    sem_unlock(SEM_SHARED);
+
+                    if (pozar || !otwarte)
+                    {
+                        return -1;
+                    }
+
                     continue;
                 }
                 perror("semop SEM_NOWA_WIADOMOSC wait failed");
@@ -547,6 +567,16 @@ void wait_wolny_mechanik()
         {
             if (errno == EINTR)
             {
+                sem_lock(SEM_SHARED);
+                int pozar = shared->pozar;
+                int otwarte = shared->serwis_otwarty;
+                sem_unlock(SEM_SHARED);
+
+                if (pozar || !otwarte)
+                {
+                    return;
+                }
+
                 continue;
             }
             perror("semop SEM_WOLNY_MECHANIK wait failed");
@@ -563,6 +593,58 @@ void wait_wolny_mechanik()
             return;
         }
         return;
+    }
+}
+
+//Czyści kolejkę komunikatów (usuwa wszystkie zaległe wiadomości)
+void drain_msg_queue()
+{
+    Msg msg;
+
+    while (1)
+    {
+        ssize_t wynik = msgrcv(msg_id, &msg, sizeof(Samochod), 0, IPC_NOWAIT);
+        if (wynik == -1)
+        {
+            if (errno == ENOMSG)
+            {
+                break;
+            }
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            perror("msgrcv drain failed");
+            break;
+        }
+    }
+}
+
+//Czyści semafory, aby nie było zaległych przebudzeń
+void clear_wakeup_sems()
+{
+    int sems[] = {SEM_SERWIS_OTWARTY, SEM_NOWA_WIADOMOSC, SEM_WOLNY_MECHANIK};
+    struct sembuf sb = {0, -1, IPC_NOWAIT};
+
+    for (size_t i = 0; i < sizeof(sems) / sizeof(sems[0]); i++)
+    {
+        sb.sem_num = sems[i];
+        while (1)
+        {
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                {
+                    break;
+                }
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+                perror("semop clear wakeup sem failed");
+                break;
+            }
+        }
     }
 }
 

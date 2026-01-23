@@ -396,19 +396,20 @@ void wait_serwis_otwarty()
 
     while (1)
     {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+                continue;
+            perror("semop SEM_SERWIS_OTWARTY wait failed");
+            continue;
+        }
+
         sem_lock(SEM_SHARED);
         int otwarte = shared->serwis_otwarty && !shared->pozar;
         sem_unlock(SEM_SHARED);
 
         if (otwarte)
             return;
-
-        if (semop(sem_id, &sb, 1) == -1)
-        {
-            if (errno == EINTR)
-                continue;
-            perror("semop SEM_SERWIS_OTWARTY wait failed");
-        }
     }
 }
 
@@ -417,13 +418,21 @@ void signal_serwis_otwarty()
 {
     struct sembuf sb = {SEM_SERWIS_OTWARTY, 1, IPC_NOWAIT};
 
-    for (int i = 0; i < 50; i++)
+    int waiters = semctl(sem_id, SEM_SERWIS_OTWARTY, GETNCNT);
+    if (waiters == -1)
+    {
+        perror("semctl GETNCNT SEM_SERWIS_OTWARTY failed");
+        return;
+    }
+
+    for (int i = 0; i < waiters; i++)
     {
         if (semop(sem_id, &sb, 1) == -1)
         {
             if (errno == EAGAIN)
                 break;
             perror("semop SEM_SERWIS_OTWARTY signal failed");
+            break;
         }
     }
 }
@@ -433,13 +442,21 @@ void signal_nowa_wiadomosc()
 {
     struct sembuf sb = {SEM_NOWA_WIADOMOSC, 1, IPC_NOWAIT};
 
-    for (int i = 0; i < 10; i++)
+    int waiters = semctl(sem_id, SEM_NOWA_WIADOMOSC, GETNCNT);
+    if (waiters == -1)
+    {
+        perror("semctl GETNCNT SEM_NOWA_WIADOMOSC failed");
+        return;
+    }
+
+    for (int i = 0; i < waiters; i++)
     {
         if (semop(sem_id, &sb, 1) == -1)
         {
             if (errno == EAGAIN)
                 break;
             perror("semop SEM_NOWA_WIADOMOSC signal failed");
+            break;
         }
     }
 }
@@ -470,6 +487,16 @@ int wait_nowa_wiadomosc(int timeout_sec)
     {
         while (1)
         {
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+                perror("semop SEM_NOWA_WIADOMOSC wait failed");
+                return -1;
+            }
+
             sem_lock(SEM_SHARED);
             int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;
@@ -477,26 +504,6 @@ int wait_nowa_wiadomosc(int timeout_sec)
 
             if (pozar || !otwarte)
             {
-                return -1;
-            }
-
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                if (errno == EINTR)
-                {
-                    sem_lock(SEM_SHARED);
-                    pozar = shared->pozar;
-                    otwarte = shared->serwis_otwarty;
-                    sem_unlock(SEM_SHARED);
-
-                    if (pozar || !otwarte)
-                    {
-                        return -1;
-                    }
-
-                    continue;
-                }
-                perror("semop SEM_NOWA_WIADOMOSC wait failed");
                 return -1;
             }
 
@@ -510,13 +517,21 @@ void signal_wolny_mechanik()
 {
     struct sembuf sb = {SEM_WOLNY_MECHANIK, 1, IPC_NOWAIT};
 
-    for (int i = 0; i < 5; i++)
+    int waiters = semctl(sem_id, SEM_WOLNY_MECHANIK, GETNCNT);
+    if (waiters == -1)
+    {
+        perror("semctl GETNCNT SEM_WOLNY_MECHANIK failed");
+        return;
+    }
+
+    for (int i = 0; i < waiters; i++)
     {
         if (semop(sem_id, &sb, 1) == -1)
         {
             if (errno == EAGAIN)
                 break;
             perror("semop SEM_WOLNY_MECHANIK signal failed");
+            break;
         }
     }
 }
@@ -528,6 +543,16 @@ void wait_wolny_mechanik()
 
     while (1)
     {
+        if (semop(sem_id, &sb, 1) == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            perror("semop SEM_WOLNY_MECHANIK wait failed");
+            continue;
+        }
+
         sem_lock(SEM_SHARED);
         int pozar = shared->pozar;
         int otwarte = shared->serwis_otwarty;
@@ -536,25 +561,6 @@ void wait_wolny_mechanik()
         if (pozar || !otwarte)
         {
             return;
-        }
-
-        if (semop(sem_id, &sb, 1) == -1)
-        {
-            if (errno == EINTR)
-            {
-                sem_lock(SEM_SHARED);
-                pozar = shared->pozar;
-                otwarte = shared->serwis_otwarty;
-                sem_unlock(SEM_SHARED);
-
-                if (pozar || !otwarte)
-                {
-                    return;
-                }
-
-                continue;
-            }
-            perror("semop SEM_WOLNY_MECHANIK wait failed");
         }
         return;
     }

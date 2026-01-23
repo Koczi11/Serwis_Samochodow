@@ -6,13 +6,34 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
 #include <sys/msg.h>
 #include <errno.h>
+
+//Flaga ewakuacji
+volatile sig_atomic_t ewakuacja = 0;
+
+//Obsługa sygnału pożaru
+void handle_pozar(int sig)
+{
+    (void)sig;
+    ewakuacja = 1;
+}
 
 int main()
 {
     //Dołączenie do IPC
     init_ipc(0);
+
+    //Rejestracja handlera pożaru
+    struct sigaction sa;
+    sa.sa_handler = handle_pozar;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGUSR1 failed");
+    }
 
     srand(getpid() ^ time(NULL));
 
@@ -53,6 +74,14 @@ int main()
     //Czekanie na otwarcie serwisu
     while(1)
     {
+        if (ewakuacja)
+        {
+            printf("[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!", getpid());
+            zapisz_log(buffer);
+            return 0;
+        }
+
         sem_lock(SEM_SHARED);
         int otwarte = shared->serwis_otwarty;
         int godzina = shared->aktualna_godzina;
@@ -115,6 +144,14 @@ int main()
     //Odbiór wyceny
     while (1)
     {
+        if (ewakuacja)
+        {
+            printf("[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!", getpid());
+            zapisz_log(buffer);
+            return 0;
+        }
+
         sem_lock(SEM_SHARED);
         if (shared->pozar)
         {
@@ -185,6 +222,14 @@ int main()
     //Oczekiwanie na zakończenie naprawy
     while (1)
     {
+        if (ewakuacja)
+        {
+            printf("[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!", getpid());
+            zapisz_log(buffer);
+            break;
+        }
+
         sem_lock(SEM_SHARED);
         int pozar = shared->pozar;
         sem_unlock(SEM_SHARED);

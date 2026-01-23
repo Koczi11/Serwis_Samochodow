@@ -119,24 +119,32 @@ int main(int argc, char *argv[])
     init_ipc(0);
 
     //Ustawienie obsługi sygnałów
-    if (signal(SIGUSR1, sig_zamknij) == SIG_ERR)
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sa.sa_handler = sig_zamknij;
+    if (sigaction(SIGRTMIN, &sa, NULL) == -1)
     {
-        perror("signal SIGUSR1 failed");
+        perror("sigaction SIGRTMIN failed");
     }
 
-    if (signal(SIGUSR2, sig_przyspiesz) == SIG_ERR)
+    sa.sa_handler = sig_przyspiesz;
+    if (sigaction(SIGRTMIN + 1, &sa, NULL) == -1)
     {
-        perror("signal SIGUSR2 failed");
+        perror("sigaction SIGRTMIN+1 failed");
     }
 
-    if (signal(SIGRTMIN, sig_normalnie) == SIG_ERR)
+    sa.sa_handler = sig_normalnie;
+    if (sigaction(SIGRTMIN + 2, &sa, NULL) == -1)
     {
-        perror("signal SIGRTMIN failed");
+        perror("sigaction SIGRTMIN+2 failed");
     }
 
-    if (signal(SIGTERM, sig_pozar) == SIG_ERR)
+    sa.sa_handler = sig_pozar;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1)
     {
-        perror("signal SIGTERM failed");
+        perror("sigaction SIGUSR1 failed");
     }
 
     Msg msg;
@@ -159,7 +167,12 @@ int main(int argc, char *argv[])
     {
         if (jest_pozar)
         {
-            break;
+            printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
+            zapisz_log(buffer);
+
+            jest_pozar = 0;
+            continue;
         }
 
         //Czekanie na otwarcie serwisu
@@ -167,7 +180,12 @@ int main(int argc, char *argv[])
         
         if (jest_pozar)
         {
-            break;
+            printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
+            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
+            zapisz_log(buffer);
+
+            jest_pozar = 0;
+            continue;
         }
 
         printf("[MECHANIK %d] Serwis otwarty, przygotowuję stanowisko %d\n", getpid(), id_stanowiska);
@@ -469,11 +487,12 @@ int main(int argc, char *argv[])
 
         if (jest_pozar)
         {
-            printf("[MECHANIK %d] Uciekam przed pożarem!\n", getpid());
+            printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
             snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
             zapisz_log(buffer);
 
-            break;
+            jest_pozar = 0;
+            continue;
         }
 
         printf("[MECHANIK %d] Czekam na kolejny dzień...\n", getpid());

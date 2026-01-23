@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/msg.h>
 
 //Progi do otwierania dodatkowych okienek
@@ -65,6 +66,16 @@ int aktywni_mechanicy()
     return aktywni;
 }
 
+//Flaga ewakuacji
+volatile sig_atomic_t ewakuacja = 0;
+
+//Obsługa sygnału pożaru
+void handle_pozar(int sig)
+{
+    (void)sig;
+    ewakuacja = 1;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -77,6 +88,16 @@ int main(int argc, char *argv[])
 
     //Dołączenie do IPC
     init_ipc(0);
+
+    //Rejestracja handlera pożaru
+    struct sigaction sa;
+    sa.sa_handler = handle_pozar;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGUSR1 failed");
+    }
 
     //Pierwszy pracownik serwisu jest zawsze aktywny
     int czy_aktywny = (id_pracownika == 0) ? 1 : 0;
@@ -95,6 +116,15 @@ int main(int argc, char *argv[])
         //Czekanie na otwarcie serwisu
         wait_serwis_otwarty();
 
+        if (ewakuacja)
+        {
+            printf("[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!\n", id_pracownika);
+            snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!", id_pracownika);
+            zapisz_log(buffer);
+            ewakuacja = 0;
+            continue;
+        }
+
         //Reset flagi aktywności na początek dnia
         if (id_pracownika != 0)
         {
@@ -108,6 +138,15 @@ int main(int argc, char *argv[])
         //Pętla obsługi klientów w ciągu dnia
         while (1)
         {
+            if (ewakuacja)
+            {
+                printf("[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!\n", id_pracownika);
+                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!", id_pracownika);
+                zapisz_log(buffer);
+                ewakuacja = 0;
+                break;
+            }
+
             sem_lock(SEM_SHARED);
             int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;
@@ -290,6 +329,12 @@ int main(int argc, char *argv[])
 
                     while (1)
                     {
+                        if (ewakuacja)
+                        {
+                            odebrano_decyzje = -1;
+                            break;
+                        }
+
                         sem_lock(SEM_SHARED);
                         if (shared->pozar)
                         {
@@ -360,6 +405,12 @@ int main(int argc, char *argv[])
 
                         while (mechanik_id == -1)
                         {
+                            if (ewakuacja)
+                            {
+                                mechanik_id = -1;
+                                break;
+                            }
+
                             sem_lock(SEM_SHARED);
                             if (shared->pozar)
                             {

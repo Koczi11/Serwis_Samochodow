@@ -61,6 +61,12 @@ int main()
         exit(1);
     }
 
+    //Ignorujemy sygnał pożaru (SIGUSR1), bo zarządza nim Kierownik
+    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
+    {
+        perror("signal SIGUSR1 ignore failed");
+    }
+
     //Zapobieganie powstawaniu procesów zombie
     if (signal(SIGCHLD, handle_sigchld) == SIG_ERR)
     {

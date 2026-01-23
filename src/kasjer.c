@@ -3,6 +3,7 @@
 #include "serwis_ipc.h"
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/msg.h>
 
 //Funkcja sprawdzająca, czy są aktywni mechanicy
@@ -22,10 +23,30 @@ int aktywni_mechanicy()
     return aktywni;
 }
 
+//Flaga ewakuacji
+volatile sig_atomic_t ewakuacja = 0;
+
+//Obsługa sygnału pożaru
+void handle_pozar(int sig)
+{
+    (void)sig;
+    ewakuacja = 1;
+}
+
 int main()
 {
     //Dołączanie do IPC
     init_ipc(0);
+
+    //Rejestracja handlera pożaru
+    struct sigaction sa;
+    sa.sa_handler = handle_pozar;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGUSR1 failed");
+    }
 
     Msg msg;
     //Bufor do raportów
@@ -35,6 +56,15 @@ int main()
     while (1)
     {
         wait_serwis_otwarty();
+
+        if (ewakuacja)
+        {
+            printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
+            snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+            zapisz_log(buffer);
+            ewakuacja = 0;
+            continue;
+        }
 
         printf("[KASJER] Kasa otwarta\n");
         snprintf(buffer, sizeof(buffer), "[KASJER] Kasa otwarta");
@@ -46,6 +76,15 @@ int main()
         //Pętla obsługi klientów
         while (1)
         {
+            if (ewakuacja)
+            {
+                printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
+                snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+                zapisz_log(buffer);
+                ewakuacja = 0;
+                break;
+            }
+
             sem_lock(SEM_SHARED);
             int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;

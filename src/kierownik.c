@@ -14,6 +14,12 @@ int main()
     //Dołączenie do IPC
     init_ipc(0);
 
+    //Kierownik ignoruje sygnał pożaru, który sam wysyła do grupy
+    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
+    {
+        perror("signal SIGUSR1 ignore failed");
+    }
+
     srand(time(NULL));
 
     char buffer[256];
@@ -131,9 +137,9 @@ int main()
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Zamknięcie stanowiska %d", stanowisko);
                     zapisz_log(buffer);
 
-                    if (kill(pid, SIGUSR1) == -1) 
+                    if (kill(pid, SIGRTMIN) == -1) 
                     {
-                        perror("[KIEROWNIK] Błąd wysłania SIGUSR1");
+                        perror("[KIEROWNIK] Błąd wysłania SIGRTMIN");
                     }
                     break;
 
@@ -143,9 +149,9 @@ int main()
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Przyspieszenie stanowiska %d", stanowisko);
                     zapisz_log(buffer);
 
-                    if (kill(pid, SIGUSR2) == -1) 
+                    if (kill(pid, SIGRTMIN + 1) == -1) 
                     {
-                        perror("[KIEROWNIK] Błąd wysłania SIGUSR2");
+                        perror("[KIEROWNIK] Błąd wysłania SIGRTMIN+1");
                     }
                     break;
 
@@ -155,16 +161,16 @@ int main()
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Normalna praca stanowiska %d", stanowisko);
                     zapisz_log(buffer);
 
-                    if (kill(pid, SIGRTMIN) == -1) 
+                    if (kill(pid, SIGRTMIN + 2) == -1) 
                     {
-                        perror("[KIEROWNIK] Błąd wysłania SIGRTMIN");
+                        perror("[KIEROWNIK] Błąd wysłania SIGRTMIN+2");
                     }
                     break;
                     
                 //Sygnał 4: Pożar w serwisie
                 case 3:
-                    printf("[KIEROWNIK] POŻAR!\n");
-                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] POŻAR!");
+                    printf("[KIEROWNIK] POŻAR! Zarządzam ewakuację całej grupy!\n");
+                    snprintf(buffer, sizeof(buffer), "[KIEROWNIK] POŻAR! Zarządzam ewakuację całej grupy!");
                     zapisz_log(buffer);
                     
                     sem_lock(SEM_SHARED);
@@ -173,18 +179,13 @@ int main()
                     shared->auta_w_serwisie = 0;
                     shared->liczba_oczekujacych_klientow = 0;
 
-                    for (int i = 0; i < MAX_STANOWISK; i++)
-                    {
-                        if (shared->stanowiska[i].pid_mechanika > 0)
-                        {
-                            if (kill(shared->stanowiska[i].pid_mechanika, SIGTERM) == -1)
-                            {
-                                perror("[KIEROWNIK] Błąd wysłania SIGTERM");
-                            }
-                        }
-                    }
-
                     sem_unlock(SEM_SHARED);
+
+                    //Wyślij sygnał pożaru do całej grupy procesów
+                    if (kill(0, SIGUSR1) == -1)
+                    {
+                        perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru");
+                    }
                     break;
             }
         }

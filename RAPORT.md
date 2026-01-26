@@ -9,7 +9,7 @@ Wymagania projektu i szczegółowy opis są dostępne w pliku: [README.md](READM
 
 ## Pliki i ich działanie w projekcie
 
-Projekt realizowano w języku C, wykorzystując механизмы komunikacji międzyprocesowej (IPC) System V: pamięć dzieloną (shared memory), kolejki komunikatów (message queues) i semafory (semaphores).
+Projekt realizowano w języku C, wykorzystując mechanizmy komunikacji międzyprocesowej (IPC) System V: pamięć dzieloną (shared memory), kolejki komunikatów (message queues) i semafory (semaphores).
 
 Program można pobrać i zbudować w następujących krokach:
 
@@ -20,12 +20,11 @@ Program można pobrać i zbudować w następujących krokach:
 
 ### Opis poszczególnych procesów
 
-* **main.c** - proces kierownika serwisu, odpowiedzialny za tworzenie wszystkich procesów (kasjer, pracownicy serwisu, mechanicy) oraz struktur komunikacyjnych (pamięć dzielona, semafory, kolejka komunikatów). Zarządza czasem symulacji (24-godzinny cykl) oraz kontroluje otwieranie/zamykanie serwisu. Obsługuje sygnały ewakuacyjne.
+* **main.c** - proces kierownika serwisu, odpowiedzialny za tworzenie wszystkich procesów (kasjer, pracownicy serwisu, mechanicy) oraz struktur komunikacyjnych (pamięć dzielona, semafory, kolejka komunikatów).
 
-* **kierownik.c** - kierownik serwisu, proces będący rozszerzeniem głównego, który symuluje upływ czasu (1 sekunda rzeczywista = 1 godzina symulacyjna). Odpowiedzialny za otwieranie/zamykanie serwisu w określonych godzinach (8:00-18:00). Losowo wysyła sygnały do mechaników (przyspieszenie, powolnienie, zamknięcie stanowiska). Zarządza całym serwisem i obsługuje zdarzenia awaryjne (pożar - sygnał SIGUSR1).
+* **kierownik.c** - kierownik serwisu, proces będący rozszerzeniem głównego, który symuluje upływ czasu. Odpowiedzialny za otwieranie/zamykanie serwisu w określonych godzinach (8:00-18:00). Losowo wysyła sygnały do mechaników (przyspieszenie, normalny stan pracy, zamknięcie stanowiska). Zarządza całym serwisem i obsługuje zdarzenia awaryjne (pożar - sygnał SIGUSR1).
 
 * **pracownik_serwisu.c** - 3 procesy pracowników obsługujących kierowców. Odpowiadają za:
-  - Sprawdzenie czy marka samochodu jest obsługiwana
   - Wycenę naprawy na podstawie wybranej usługi
   - Dynamiczne otwieranie/zamykanie okienek obsługi w zależności od liczby czekających kierowców (progi K1=3 i K2=5)
   - Zgłaszanie dodatkowych usterek (20% przypadków)
@@ -35,7 +34,7 @@ Program można pobrać i zbudować w następujących krokach:
   - Komunikacja z kasjerem o opłacie
 
 * **mechanik.c** - 8 procesów mechaników obsługujących stanowiska naprawy. Każdy mechanik:
-  - Obsługuje samochód przez określony czas (może być przyspieszony o 50%)
+  - Obsługuje samochód przez określony czas
   - Obsługuje sygnały kierownika (zamknięcie stanowiska, przyspieszenie, powolnienie)
   - Zgłasza pracownikowi serwisu o dodatkowych usterkach (20% prawdopodobieństwa)
   - Informuje pracownika o ukończeniu naprawy
@@ -76,18 +75,6 @@ Program można pobrać i zbudować w następujących krokach:
 ---
 
 ## Z czym były problemy
-
-### Synchronizacja dostępu do pamięci dzielonej
-Głównym wyzwaniem było zapewnienie bezpiecznego dostępu do wspólnych struktur danych bez deadlock'ów. Rozwiązaniem było użycie semaforów binarnych z rygorystycznym zarządzaniem ich zwolnieniem.
-
-### Obsługa sygnałów w kontekście wieloprocesowości
-Problem polegał na tym, że sygnały wysyłane kierownikowi musiały być propagowane do odpowiednich procesów (mechaników). Rozwiązanie wymagało użycia `kill()` z SIGRTMIN/SIGRTMIN+1 itp. dla precyzyjnej kontroli.
-
-### Zarządzanie stanem przyspieszenia stanowisk
-Implementacja warunkowego przyspieszenia (tylko jedno przyspieszenie, możliwość powrotu do normy) wymagała dokładnego śledzenia stanu flagi `przyspieszony` w każdym mechaniku.
-
-### Niespodziewane problemy z timeoutami
-Pierwsze podejście do czekania oparte na `sleep()` było nieelastyczne. Zamiast tego wykorzystano semafory z krótkim czasem oczekiwania w pętli.
 
 ---
 
@@ -161,56 +148,9 @@ Każdy proces obsługuje sygnały w bezpieczny sposób:
 
 ## Linki do kluczowych fragmentów
 
-### 1. Inicjalizacja struktur komunikacji
-- [init_ipc() - tworzenie IPC](src/serwis_ipc.c#L25-L160)
-- [cleanup_ipc() - czyszczenie IPC](src/serwis_ipc.c#L162-L191)
-
-### 2. Operacje na semaforach
-- [sem_lock() - operacja P (wait)](src/serwis_ipc.c#L230-L250)
-- [sem_unlock() - operacja V (signal)](src/serwis_ipc.c#L252-L270)
-- [signal_serwis_otwarty() - sygnalizacja otwarcia](src/serwis_ipc.c#L272-L285)
-- [wait_serwis_otwarty() - oczekiwanie na otwarcie](src/serwis_ipc.c#L287-L300)
-
-### 3. Operacje na kolejce komunikatów
-- [send_msg() - wysłanie wiadomości](src/serwis_ipc.c#L380-L410)
-- [recv_msg() - odbiór wiadomości](src/serwis_ipc.c#L412-L450)
-- [signal_nowa_wiadomosc() - sygnalizacja nowej wiadomości](src/serwis_ipc.c#L452-L465)
-
-### 4. Zarządzanie procesami
-- [fork() - tworzenie procesów kierowców](src/main.c#L75-L100)
-- [execl() - uruchamianie pracowników serwisu](src/main.c#L85-L95)
-- [execl() - uruchamianie mechaników](src/main.c#L100-L115)
-- [waitpid() - czyszczenie zombi](src/main.c#L12-L30)
-
-### 5. Obsługa sygnałów
-- [Obsługa SIGUSR1 w kierowcy](src/kierowca.c#L11-L17)
-- [Obsługa sygnałów w mechaniku](src/mechanik.c#L11-L60)
-- [Obsługa sygnałów w pracowniku serwisu](src/pracownik_serwisu.c#L70-L85)
-- [Obsługa sygnałów w kierowniku](src/kierownik.c#L1-L20)
-
-### 6. Dynamiczne zarządzanie okienkami
-- [Sprawdzanie progów K1 i K2](src/pracownik_serwisu.c#L100-L150)
-- [Otwieranie/zamykanie okienek](src/pracownik_serwisu.c#L150-L200)
-
-### 7. Logowanie i raporty
-- [zapisz_log() - zapis logu zdarzenia](src/serwis_ipc.c#L500-L530)
-- [zapisz_raport() - zapis raportu dziennego](src/serwis_ipc.c#L532-L560)
-
 ---
 
 ## Wyróżniające elementy projektu
-
-1. **Dynamiczne zarządzanie okienkami obsługi**: System automatycznie otwiera/zamyka stanowiska obsługi na podstawie liczby czekających kierowców (progi K1=3 i K2=5)
-
-2. **Obsługa dodatkowych usterek**: 20% samochodów otrzymuje dodatkowe usterki podczas diagnostyki, a kierowcy mogą je zaakceptować lub odrzucić
-
-3. **Inteligentne kierowanie do stanowisk**: Stanowiska 1-7 obsługują większość marek, natomiast stanowisko 8 dedykowane jest tylko markom U i Y
-
-4. **Wielopoziomowa synchronizacja czasowa**: Symulacja czasu niezależna od rzeczywistych opóźnień, bezpieczna dla sygnałów
-
-5. **Pełne logowanie zdarzeń**: Wszystkie zdarzenia (rejestracja, decyzje, naprawy, płatności) są zapisywane do logu
-
-6. **Obsługa ewakuacji**: Sygnał pożaru (SIGUSR1) natychmiast przerywa wszystkie operacje i wymusza wyjście z serwisu
 
 ---
 

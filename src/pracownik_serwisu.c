@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/msg.h>
+#include <errno.h>
 
 //Progi do otwierania dodatkowych okienek
 #define K1 3
@@ -103,7 +104,6 @@ int main(int argc, char *argv[])
     int czy_aktywny = (id_pracownika == 0) ? 1 : 0;
 
     Msg msg;
-
     char buffer[256];
 
     printf("[PRACOWNIK SERWISU %d] Uruchomiony\n", id_pracownika);
@@ -113,6 +113,11 @@ int main(int argc, char *argv[])
     //Pętla dni pracy
     while (1)
     {
+        if (ewakuacja)
+        {
+            ewakuacja = 0;
+        }
+
         //Czekanie na otwarcie serwisu
         wait_serwis_otwarty();
 
@@ -143,22 +148,13 @@ int main(int argc, char *argv[])
                 printf("[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!\n", id_pracownika);
                 snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!", id_pracownika);
                 zapisz_log(buffer);
-                ewakuacja = 0;
+
                 break;
             }
 
             sem_lock(SEM_SHARED);
-            int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;
             sem_unlock(SEM_SHARED);
-
-            if (pozar)
-            {
-                printf("[PRACOWNIK SERWISU %d] Pożar!\n", id_pracownika);
-                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar!", id_pracownika);
-                zapisz_log(buffer);
-                break;
-            }
 
             //Sterowanie otwieraniem/zamykaniem dodatkowych stanowisk
             if (otwarte)
@@ -206,7 +202,11 @@ int main(int argc, char *argv[])
             //Jeśli pracownik nie jest aktywny i serwis jest otwarty, to czeka
             if (!czy_aktywny && otwarte)
             {
-                wait_nowa_wiadomosc(0);
+                if (wait_nowa_wiadomosc(0) == -1 && ewakuacja)
+                {
+                    break;
+                }
+
                 continue;
             }
 
@@ -294,7 +294,9 @@ int main(int argc, char *argv[])
                     //Aktualizacja liczby oczekujących klientów
                     sem_lock(SEM_SHARED);
                     if (shared->liczba_oczekujacych_klientow > 0)
+                    {
                         shared->liczba_oczekujacych_klientow--;
+                    }
                     sem_unlock(SEM_SHARED);
 
                     printf("[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
@@ -302,8 +304,7 @@ int main(int argc, char *argv[])
                     zapisz_log(buffer);
 
                     //Symulacja czasu obsługi przy rejestracji
-                    //sleep(1);
-                    safe_wait_seconds(1);
+                    //safe_wait_seconds(1);
 
                     Usluga u = pobierz_usluge(msg.samochod.id_uslugi);
 
@@ -335,19 +336,6 @@ int main(int argc, char *argv[])
                             break;
                         }
 
-                        sem_lock(SEM_SHARED);
-                        if (shared->pozar)
-                        {
-                            sem_unlock(SEM_SHARED);
-                            printf("[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d\n", id_pracownika, msg.samochod.pid_kierowcy);
-                            snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d", id_pracownika, msg.samochod.pid_kierowcy);
-                            zapisz_log(buffer);
-                            
-                            odebrano_decyzje = -1;
-                            break;
-                        }
-                        sem_unlock(SEM_SHARED);
-
                         if (recv_msg(msg_id, &decyzja, MSG_DECYZJA_USLUGI(id_pracownika), IPC_NOWAIT) != -1)
                         {
                             //Sprawdź czy to odpowiedź od właściwego kierowcy
@@ -364,7 +352,6 @@ int main(int argc, char *argv[])
                                 signal_nowa_wiadomosc();
                             }
                         }
-
                         wait_nowa_wiadomosc(0);
                     }
 
@@ -381,7 +368,7 @@ int main(int argc, char *argv[])
                         zapisz_log(buffer);
 
                         sem_lock(SEM_SHARED);
-                        if (!shared->serwis_otwarty || shared->pozar)
+                        if (!shared->serwis_otwarty || ewakuacja)
                         {
                             sem_unlock(SEM_SHARED);
                             printf("[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
@@ -390,8 +377,15 @@ int main(int argc, char *argv[])
 
                             msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                             msg.samochod.koszt = 0;
+                            msg.samochod.ewakuacja = (ewakuacja ? 1 : 0);
                             send_msg(msg_id, &msg);
                             signal_nowa_wiadomosc();
+
+                            if (ewakuacja)
+                            {
+                                break;
+                            }
+
                             continue;
                         }
 
@@ -401,46 +395,23 @@ int main(int argc, char *argv[])
 
                         //Znajdowanie wolnego stanowiska
                         int mechanik_id = -1;
-                        int poinforowano = 0;
 
                         while (mechanik_id == -1)
                         {
                             if (ewakuacja)
                             {
-                                mechanik_id = -1;
                                 break;
                             }
-
-                            sem_lock(SEM_SHARED);
-                            if (shared->pozar)
-                            {
-                                sem_unlock(SEM_SHARED);
-                                printf("[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d\n", id_pracownika, msg.samochod.pid_kierowcy);
-                                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Pożar! Anuluję obsługę klienta %d", id_pracownika, msg.samochod.pid_kierowcy);
-                                zapisz_log(buffer);
-                                
-                                break;
-                            }
-                            sem_unlock(SEM_SHARED);
 
                             mechanik_id = znajdz_wolne_stanowisko(msg.samochod.marka);
 
                             if (mechanik_id == -1)
                             {
-                                if (!poinforowano)
-                                {
-                                    printf("[PRACOWNIK SERWISU %d] Brak wolnych mechaników dla %s, czekam...\n", id_pracownika, msg.samochod.marka);
-                                    snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Brak wolnych mechaników dla %s, czekam...", id_pracownika, msg.samochod.marka);
-                                    zapisz_log(buffer);
-
-                                    poinforowano = 1;
-                                }
-                                
                                 wait_wolny_mechanik();
                             }
                         }
 
-                        if (mechanik_id == -1)
+                        if (ewakuacja)
                         {
                             break;
                         }
@@ -461,6 +432,7 @@ int main(int argc, char *argv[])
                         snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kierowca %d odrzucił usługę", id_pracownika, msg.samochod.pid_kierowcy);
                         zapisz_log(buffer);
                     }
+                    
                     continue;
                 }
             }

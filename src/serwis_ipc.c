@@ -68,6 +68,8 @@ void init_ipc(int is_parent)
     //Inicjalizacja struktur danych
     if (is_parent)
     {
+        memset(shared, 0, sizeof(SharedData));
+
         shared->serwis_otwarty = 0;
         shared->pozar = 0;
         shared->reset_po_pozarze = 0;
@@ -198,7 +200,9 @@ int marka_obslugiwana(const char *m)
     for (int i = 0; i < 6; i++)
     {
         if (strcmp(m, dozwolone[i]) == 0)
+        {
             return 1;
+        }
     }
 
     return 0;
@@ -208,18 +212,15 @@ int marka_obslugiwana(const char *m)
 void sem_lock(int num)
 {
     struct sembuf sb = {num, -1, 0};
-    while (1)
+    while (semop(sem_id, &sb, 1) == -1)
     {
-        if (semop(sem_id, &sb, 1) == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            perror("semop lock failed");
-            exit(1);
+            continue;
         }
-        return;
+
+        perror("semop lock failed");
+        exit(1);
     }
 }
 
@@ -227,18 +228,15 @@ void sem_lock(int num)
 void sem_unlock(int num)
 {
     struct sembuf sb = {num, 1, 0};
-    while (1)
+    while (semop(sem_id, &sb, 1) == -1)
     {
-        if (semop(sem_id, &sb, 1) == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            perror("semop unlock failed");
-            exit(1);
+            continue;
         }
-        return;
+
+        perror("semop unlock failed");
+        exit(1);
     }
 }
 
@@ -340,87 +338,60 @@ Usluga pobierz_usluge(int id)
 //Wysyła komunikat do kolejki
 int send_msg(int msg_id, Msg *msg)
 {
-    while (1)
+    if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == -1)
     {
-        if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            else
-            {
-                perror("msgsnd failed");
-                return -1;
-            }
+            return -1;
         }
-
-        return 0;
+        
+        perror("msgsnd failed");
+        return -1;
     }
+
+    return 0;
 }
 
 //Odbiera komunikat z kolejki
 int recv_msg(int msg_id, Msg *msg, long type, int flags)
 {
-    while (1)
+    ssize_t wynik = msgrcv(msg_id, msg, sizeof(Samochod), type, flags);
+
+    if (wynik == -1)
     {
-        ssize_t wynik = msgrcv(msg_id, msg, sizeof(Samochod), type, flags);
-
-        if (wynik == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                if (flags & IPC_NOWAIT)
-                {
-                    return -1;
-                }
-
-                continue;
-            }
-
-            if (errno != ENOMSG)
-            {
-                perror("msgrcv failed");
-            }
-
             return -1;
         }
 
-        return 0;
+        if (errno != ENOMSG)
+        {
+            perror("msgrcv failed");
+        }
+
+        return -1;
     }
+
+    return 0;
 }
 
 //Oczekuje na otwarcie serwisu
-void wait_serwis_otwarty()
+int wait_serwis_otwarty()
 {
     struct sembuf sb = {SEM_SERWIS_OTWARTY, -1, 0};
 
-    while (1)
+    if (semop(sem_id, &sb, 1) == -1)
     {
-        if (semop(sem_id, &sb, 1) == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                sem_lock(SEM_SHARED);
-                int pozar = shared->pozar;
-                sem_unlock(SEM_SHARED);
-
-                if (pozar)
-                    return;
-
-                continue;
-            }
-            perror("semop SEM_SERWIS_OTWARTY wait failed");
-            continue;
+            return -1;
         }
 
-        sem_lock(SEM_SHARED);
-        int otwarte = shared->serwis_otwarty && !shared->pozar;
-        sem_unlock(SEM_SHARED);
-
-        if (otwarte)
-            return;
+        perror("semop SEM_SERWIS_OTWARTY wait failed");
+        return -1;
     }
+
+    return 0;
 }
 
 //Sygnalizuje otwarcie serwisu
@@ -429,20 +400,15 @@ void signal_serwis_otwarty()
     struct sembuf sb = {SEM_SERWIS_OTWARTY, 1, IPC_NOWAIT};
 
     int waiters = semctl(sem_id, SEM_SERWIS_OTWARTY, GETNCNT);
-    if (waiters == -1)
+    if (waiters > 0)
     {
-        perror("semctl GETNCNT SEM_SERWIS_OTWARTY failed");
-        return;
-    }
-
-    for (int i = 0; i < waiters; i++)
-    {
-        if (semop(sem_id, &sb, 1) == -1)
+        for (int i = 0; i < waiters; i++)
         {
-            if (errno == EAGAIN)
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                perror("semop SEM_SERWIS_OTWARTY signal failed");
                 break;
-            perror("semop SEM_SERWIS_OTWARTY signal failed");
-            break;
+            }
         }
     }
 }
@@ -453,20 +419,15 @@ void signal_nowa_wiadomosc()
     struct sembuf sb = {SEM_NOWA_WIADOMOSC, 1, IPC_NOWAIT};
 
     int waiters = semctl(sem_id, SEM_NOWA_WIADOMOSC, GETNCNT);
-    if (waiters == -1)
+    if (waiters > 0)
     {
-        perror("semctl GETNCNT SEM_NOWA_WIADOMOSC failed");
-        return;
-    }
-
-    for (int i = 0; i < waiters; i++)
-    {
-        if (semop(sem_id, &sb, 1) == -1)
+        for (int i = 0; i < waiters; i++)
         {
-            if (errno == EAGAIN)
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                perror("semop SEM_NOWA_WIADOMOSC signal failed");
                 break;
-            perror("semop SEM_NOWA_WIADOMOSC signal failed");
-            break;
+            }
         }
     }
 }
@@ -482,11 +443,6 @@ int wait_nowa_wiadomosc(int timeout_sec)
 
         if (semop(sem_id, &sb, 1) == -1)
         {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-            {
-                //Brak wiadomości
-                return -1;
-            }
             perror("semop SEM_NOWA_WIADOMOSC wait failed");
             return -1;
         }
@@ -495,40 +451,18 @@ int wait_nowa_wiadomosc(int timeout_sec)
     }
     else
     {
-        while (1)
+        if (semop(sem_id, &sb, 1) == -1)
         {
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                if (errno == EINTR)
-                {
-                    sem_lock(SEM_SHARED);
-                    int pozar = shared->pozar;
-                    int otwarte = shared->serwis_otwarty;
-                    sem_unlock(SEM_SHARED);
-
-                    if (pozar || !otwarte)
-                    {
-                        return -1;
-                    }
-
-                    continue;
-                }
-                perror("semop SEM_NOWA_WIADOMOSC wait failed");
-                return -1;
-            }
-
-            sem_lock(SEM_SHARED);
-            int pozar = shared->pozar;
-            int otwarte = shared->serwis_otwarty;
-            sem_unlock(SEM_SHARED);
-
-            if (pozar || !otwarte)
+            if (errno == EINTR)
             {
                 return -1;
             }
 
-            return 0;
+            perror("semop SEM_NOWA_WIADOMOSC wait failed");
+            return -1;
         }
+
+        return 0;
     }
 }
 
@@ -538,62 +472,35 @@ void signal_wolny_mechanik()
     struct sembuf sb = {SEM_WOLNY_MECHANIK, 1, IPC_NOWAIT};
 
     int waiters = semctl(sem_id, SEM_WOLNY_MECHANIK, GETNCNT);
-    if (waiters == -1)
+    if (waiters > 0)
     {
-        perror("semctl GETNCNT SEM_WOLNY_MECHANIK failed");
-        return;
-    }
-
-    for (int i = 0; i < waiters; i++)
-    {
-        if (semop(sem_id, &sb, 1) == -1)
+        for (int i = 0; i < waiters; i++)
         {
-            if (errno == EAGAIN)
+            if (semop(sem_id, &sb, 1) == -1)
+            {
+                perror("semop SEM_WOLNY_MECHANIK signal failed");
                 break;
-            perror("semop SEM_WOLNY_MECHANIK signal failed");
-            break;
+            }
         }
     }
 }
 
 //Oczekuje na wolnego mechanika
-void wait_wolny_mechanik()
+int wait_wolny_mechanik()
 {
     struct sembuf sb = {SEM_WOLNY_MECHANIK, -1, 0};
 
-    while (1)
+    if (semop(sem_id, &sb, 1) == -1)
     {
-        if (semop(sem_id, &sb, 1) == -1)
+        if (errno == EINTR)
         {
-            if (errno == EINTR)
-            {
-                sem_lock(SEM_SHARED);
-                int pozar = shared->pozar;
-                int otwarte = shared->serwis_otwarty;
-                sem_unlock(SEM_SHARED);
-
-                if (pozar || !otwarte)
-                {
-                    return;
-                }
-
-                continue;
-            }
-            perror("semop SEM_WOLNY_MECHANIK wait failed");
-            continue;
+            return -1;
         }
-
-        sem_lock(SEM_SHARED);
-        int pozar = shared->pozar;
-        int otwarte = shared->serwis_otwarty;
-        sem_unlock(SEM_SHARED);
-
-        if (pozar || !otwarte)
-        {
-            return;
-        }
-        return;
+        perror("semop SEM_WOLNY_MECHANIK wait failed");
+        return -1;
     }
+
+    return 0;
 }
 
 //Czyści kolejkę komunikatów (usuwa wszystkie zaległe wiadomości)
@@ -601,22 +508,9 @@ void drain_msg_queue()
 {
     Msg msg;
 
-    while (1)
+    while (msgrcv(msg_id, &msg, sizeof(Samochod), 0, IPC_NOWAIT) != -1)
     {
-        ssize_t wynik = msgrcv(msg_id, &msg, sizeof(Samochod), 0, IPC_NOWAIT);
-        if (wynik == -1)
-        {
-            if (errno == ENOMSG)
-            {
-                break;
-            }
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            perror("msgrcv drain failed");
-            break;
-        }
+        //Usunięto wiadomość
     }
 }
 
@@ -626,30 +520,17 @@ void clear_wakeup_sems()
     int sems[] = {SEM_SERWIS_OTWARTY, SEM_NOWA_WIADOMOSC, SEM_WOLNY_MECHANIK};
     struct sembuf sb = {0, -1, IPC_NOWAIT};
 
-    for (size_t i = 0; i < sizeof(sems) / sizeof(sems[0]); i++)
+    for (size_t i = 0; i < 3; i++)
     {
         sb.sem_num = sems[i];
-        while (1)
+        while (semop(sem_id, &sb, 1) != -1)
         {
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
-                {
-                    break;
-                }
-                if (errno == EINTR)
-                {
-                    continue;
-                }
-                perror("semop clear wakeup sem failed");
-                break;
-            }
+            //Czyszczenie semafora
         }
     }
 }
 
-//Funkcja bezpiecznego oczekiwania z timeoutem.
-//Używa semtimedop na semaforze SEM_TIMER jako mechanizmu uśpienia.
+//Funkcja bezpiecznego oczekiwania
 int safe_wait_seconds(double seconds)
 {
     if (seconds <= 0)

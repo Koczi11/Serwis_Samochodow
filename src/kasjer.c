@@ -5,6 +5,17 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/msg.h>
+#include <errno.h>
+
+//Flaga ewakuacji
+volatile sig_atomic_t ewakuacja = 0;
+
+//Obsługa sygnału pożaru
+void handle_pozar(int sig)
+{
+    (void)sig;
+    ewakuacja = 1;
+}
 
 //Funkcja sprawdzająca, czy są aktywni mechanicy
 int aktywni_mechanicy()
@@ -23,16 +34,6 @@ int aktywni_mechanicy()
     return aktywni;
 }
 
-//Flaga ewakuacji
-volatile sig_atomic_t ewakuacja = 0;
-
-//Obsługa sygnału pożaru
-void handle_pozar(int sig)
-{
-    (void)sig;
-    ewakuacja = 1;
-}
-
 int main()
 {
     //Dołączanie do IPC
@@ -49,12 +50,16 @@ int main()
     }
 
     Msg msg;
-    //Bufor do raportów
     char buffer[256];
 
     //Pętla dni pracy
     while (1)
     {
+        if (ewakuacja)
+        {
+            ewakuacja = 0;
+        }
+
         wait_serwis_otwarty();
 
         if (ewakuacja)
@@ -81,23 +86,16 @@ int main()
                 printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
                 snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
                 zapisz_log(buffer);
-                ewakuacja = 0;
+
+                snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
+                zapisz_raport(buffer);
+
                 break;
             }
 
             sem_lock(SEM_SHARED);
-            int pozar = shared->pozar;
             int otwarte = shared->serwis_otwarty;
             sem_unlock(SEM_SHARED);
-
-            if (pozar)
-            {
-                printf("[KASJER] Pożar!\n");
-                snprintf(buffer, sizeof(buffer), "[KASJER] Pożar!");
-                zapisz_log(buffer);
-
-                break;
-            }
 
             //Obsługa płatności klientów
             if(recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) != -1)
@@ -105,7 +103,7 @@ int main()
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 zapisz_log(buffer);
-                safe_wait_seconds(2);
+                //safe_wait_seconds(2);
 
                 //Aktualizacja dziennego utargu
                 dzienny_utarg += msg.samochod.koszt;
@@ -141,6 +139,20 @@ int main()
                 //Przejdź do obsługi następnego klienta
                 continue;
             }
+            else
+            {
+                if (errno == EINTR && ewakuacja)
+                {
+                    printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+                    zapisz_log(buffer);
+
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
+                    zapisz_raport(buffer);
+
+                    break;
+                }
+            }
 
             //Procedura zamknięcia kasy, jeśli serwis jest zamknięty i nie ma klientów
             if (!otwarte)
@@ -159,30 +171,32 @@ int main()
                         snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta o godzinie %d, brak klientów", shared->aktualna_godzina);
                         zapisz_log(buffer);
                         
+                        //Zapisujemy raport o zamknięciu kasy
+                        snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta. Dzienny utarg: %d PLN", dzienny_utarg);
+                        zapisz_raport(buffer);
+                        printf("%s\n", buffer);
+                        
                         break;
                     }
                 }
             }
 
-            wait_nowa_wiadomosc(0);
-        }
+            //Czekanie na nową wiadomość
+            if (wait_nowa_wiadomosc(0) == -1)
+            {
+                if (ewakuacja)
+                {
+                    printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+                    zapisz_log(buffer);
 
-        sem_lock(SEM_SHARED);
-        int pozar = shared->pozar;
-        sem_unlock(SEM_SHARED);
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
+                    zapisz_raport(buffer);
 
-        //Zapisujemy raport o zamknięciu kasy
-        if (pozar)
-        {
-            snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
+                    break;
+                }
+            }
         }
-        else
-        {
-            snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta. Dzienny utarg: %d PLN", dzienny_utarg);
-        }
-
-        zapisz_raport(buffer);
-        printf("%s\n", buffer);
     }
     return 0;
 }

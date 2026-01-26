@@ -124,11 +124,11 @@ int main()
     //Dołączenie do kolejki oczekujących klientów
     sem_lock(SEM_SHARED);
     shared->liczba_oczekujacych_klientow++;
+    sem_unlock(SEM_SHARED);
+
     printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d", getpid(), shared->liczba_oczekujacych_klientow);
     zapisz_log(buffer);
-
-    sem_unlock(SEM_SHARED);
 
     //Wysłanie do rejestracji
     if (send_msg(msg_id, &msg) == -1)
@@ -136,6 +136,7 @@ int main()
         perror("[KIEROWCA] Błąd rejestracji");
         return 1;
     }
+
     signal_nowa_wiadomosc();
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Samochód wysłany do rejestracji", getpid());
@@ -152,25 +153,13 @@ int main()
             return 0;
         }
 
-        sem_lock(SEM_SHARED);
-        if (shared->pozar)
-        {
-            sem_unlock(SEM_SHARED);
-            printf("[KIEROWCA %d] Pożar! Uciekam z serwisu!\n", getpid());
-            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Pożar! Uciekam z serwisu!", getpid());
-            zapisz_log(buffer);
-
-            return 0;
-        }
-        sem_unlock(SEM_SHARED);
-
         if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) != -1)
         {
             //Otrzymano wycenę
             break;
         }
 
-        if (errno != ENOMSG)
+        if (errno != ENOMSG && errno != EINTR)
         {
             perror("[KIEROWCA] Błąd odbioru wyceny");
             return 1;
@@ -179,11 +168,10 @@ int main()
         wait_nowa_wiadomosc(0);
     }
 
-    //Sprawdzenie czy serwis może wykonać naprawę (z powodu zamknięcia lub pożaru)
-    if (msg.samochod.koszt == 0 && !msg.samochod.ewakuacja)
+    if (msg.samochod.ewakuacja)
     {
-        printf("[KIEROWCA %d] Serwis nie może wykonać naprawy, odjeżdżam\n", getpid());
-        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis nie może wykonać naprawy, odjeżdżam", getpid());
+        printf("[KIEROWCA %d] Ewakuacja podczas oczekiwania na wycenę! Uciekam!\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Ewakuacja podczas oczekiwania na wycenę! Uciekam!", getpid());
         zapisz_log(buffer);
 
         return 0;
@@ -230,18 +218,6 @@ int main()
             break;
         }
 
-        sem_lock(SEM_SHARED);
-        int pozar = shared->pozar;
-        sem_unlock(SEM_SHARED);
-
-        if (pozar)
-        {
-            printf("[KIEROWCA %d] Widzę ogień! Biorę kluczyki z lady i uciekam\n", getpid());
-            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Widzę ogień! Biorę kluczyki z lady i uciekam", getpid());
-            zapisz_log(buffer);
-            break;
-        }
-
         //Odbiór wiadomości zwrotnych
         if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) == -1)
         {
@@ -261,7 +237,7 @@ int main()
             snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Mechanik oddał kluczyki z powodu pożaru! Uciekam!", getpid());
             zapisz_log(buffer);
 
-            break;
+            return 0;
         }
 
         //Obsługa dodatkowych usterek

@@ -16,7 +16,7 @@ int id_stanowiska = -1;
 //Flagi obsługi sygnałów
 volatile sig_atomic_t przyspieszony = 0;
 volatile sig_atomic_t zamknij_po = 0;
-volatile sig_atomic_t jest_pozar = 0;
+volatile sig_atomic_t ewakuacja = 0;
 
 //Obsługa sygnałów
 void sig_zamknij(int sig)
@@ -66,19 +66,13 @@ void sig_normalnie(int sig)
     }
 }
 
-void sig_pozar(int sig)
+void handle_pozar(int sig)
 {
     (void)sig;
-    jest_pozar = 1;
-    const char *msg = "[MECHANIK] POŻAR!\n";
-    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
-    {
-        perror("write failed");
-    }
+    ewakuacja = 1;
 }
 
 //Funkcja wykonująca pracę mechanika
-//Uwzględnia tryb przyspieszony oraz ewentualny pożar
 void wykonaj_prace(int czas_pracy)
 {
     double wykonano = 0.0;
@@ -86,14 +80,14 @@ void wykonaj_prace(int czas_pracy)
 
     while (wykonano < czas_pracy)
     {
-        if (jest_pozar)
+        if (ewakuacja)
         {
             break;
         }
 
         if (safe_wait_seconds(krok) == -1)
         {
-            if (jest_pozar)
+            if (ewakuacja)
             {
                 break;
             }
@@ -141,14 +135,13 @@ int main(int argc, char *argv[])
         perror("sigaction SIGRTMIN+2 failed");
     }
 
-    sa.sa_handler = sig_pozar;
+    sa.sa_handler = handle_pozar;
     if (sigaction(SIGUSR1, &sa, NULL) == -1)
     {
         perror("sigaction SIGUSR1 failed");
     }
 
     Msg msg;
-
     char buffer[256];
     int dodatkowy_koszt_zaakceptowany = 0;
     int dodatkowy_id_zaakceptowany = -1;
@@ -165,26 +158,24 @@ int main(int argc, char *argv[])
     //Pętla dni pracy
     while (1)
     {
-        if (jest_pozar)
+        if (ewakuacja)
         {
             printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
             snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
             zapisz_log(buffer);
 
-            jest_pozar = 0;
-            continue;
+            sem_lock(SEM_SHARED);
+            shared->stanowiska[id_stanowiska].zajete = 0;
+            sem_unlock(SEM_SHARED);
+
+            ewakuacja = 0;
         }
 
         //Czekanie na otwarcie serwisu
         wait_serwis_otwarty();
         
-        if (jest_pozar)
+        if (ewakuacja)
         {
-            printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
-            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
-            zapisz_log(buffer);
-
-            jest_pozar = 0;
             continue;
         }
 
@@ -200,7 +191,7 @@ int main(int argc, char *argv[])
         //Pętla obsługi aut w ciągu dnia
         while (1)
         {
-            if (jest_pozar)
+            if (ewakuacja)
             {
                 break;
             }
@@ -265,22 +256,9 @@ int main(int argc, char *argv[])
             {
                 if (errno == ENOMSG || errno == EINTR)
                 {
-                    if (jest_pozar)
+                    if (ewakuacja)
                     {
                         break;
-                    }
-
-                    if (zamknij_po && errno != EINTR)
-                    {
-                        printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
-                        snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Zamykam stanowisko %d", getpid(), id_stanowiska);
-                        zapisz_log(buffer);
-
-                        sem_lock(SEM_SHARED);
-                        shared->stanowiska[id_stanowiska].pid_mechanika = -1;
-                        shared->stanowiska[id_stanowiska].zajete = 0;
-                        sem_unlock(SEM_SHARED);
-                        exit(0);
                     }
 
                     if (errno == ENOMSG)
@@ -307,16 +285,12 @@ int main(int argc, char *argv[])
             shared->stanowiska[id_stanowiska].zajete = 1;
             sem_unlock(SEM_SHARED);
 
-            printf("[MECHANIK %d] Naprawiam auto %d (Marka: %s)\n", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
-            snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Naprawiam auto %d (Marka: %s)", getpid(), msg.samochod.pid_kierowcy, msg.samochod.marka);
-            zapisz_log(buffer);
-
             double czas_calkowity = (double)msg.samochod.czas_naprawy;
             int part1 = czas_calkowity / 2.0;
 
             wykonaj_prace(part1);
 
-            if (jest_pozar)
+            if (ewakuacja)
             {
                 //Procedura ewakuacji podczas pożaru
                 printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
@@ -370,7 +344,7 @@ int main(int argc, char *argv[])
                 //Czekanie na decyzję kierowcy
                 while (1)
                 {
-                    if (jest_pozar)
+                    if (ewakuacja)
                     {
                         break;
                     }
@@ -395,7 +369,7 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                if (jest_pozar)
+                if (ewakuacja)
                 {
                     //Procedura ewakuacji podczas pożaru
                     printf("[MECHANIK %d] Pożar! Nie czekam na decyzję. Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
@@ -442,7 +416,7 @@ int main(int argc, char *argv[])
                 wykonaj_prace(part2);
             }
             
-            if (jest_pozar)
+            if (ewakuacja)
             {
                 printf("[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!\n", getpid(), msg.samochod.pid_kierowcy);
                 snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Pożar! Przerywam pracę nad autem %d. Oddaje kluczyki kierowcy!", getpid(), msg.samochod.pid_kierowcy);
@@ -485,13 +459,12 @@ int main(int argc, char *argv[])
         shared->stanowiska[id_stanowiska].zajete = 0;
         sem_unlock(SEM_SHARED);
 
-        if (jest_pozar)
+        if (ewakuacja)
         {
             printf("[MECHANIK %d] Uciekam przed pożarem! Czekam na ugaszenie i następny dzień.\n", getpid());
             snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Uciekam przed pożarem!", getpid());
             zapisz_log(buffer);
 
-            jest_pozar = 0;
             continue;
         }
 

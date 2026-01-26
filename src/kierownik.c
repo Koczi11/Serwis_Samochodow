@@ -7,13 +7,42 @@
 #include <signal.h>
 #include <time.h>
 #include <errno.h>
+#include <string.h>
 
 #define SEC_PER_H 5.0
 
+//Flaga sterująca pętlą główną
+static volatile sig_atomic_t running = 1;
+
+//Obsługa sygnału zamknięcia
+static void handle_sigterm(int sig)
+{
+    (void) sig;
+
+    const char *msg = "\n[KIEROWNIK] Zamknięcie serwisu\n";
+    if (write(STDOUT_FILENO, msg, strlen(msg)) == -1)
+    {
+        perror("write failed");
+    }
+    running = 0;
+}
+
 int main()
 {
-    //Dołączenie do IPC
-    init_ipc(0);
+    //Konfiguracja obsługi sygnałów
+    if (signal(SIGTERM, handle_sigterm) == SIG_ERR)
+    {
+        perror("signal SIGTERM failed");
+        exit(1);
+    }
+    if (signal(SIGINT, handle_sigterm) == SIG_ERR)
+    {
+        perror("signal SIGINT failed");
+        exit(1);
+    }
+
+    //Dołączenie do IPC (kierownik tworzy zasoby)
+    init_ipc(1);
 
     //Kierownik ignoruje sygnał pożaru, który sam wysyła do grupy
     if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
@@ -35,11 +64,14 @@ int main()
     shared->liczba_oczekujacych_klientow = 0;
     sem_unlock(SEM_SHARED);
 
-    while (1)
+    while (running)
     {
         if (safe_wait_seconds(SEC_PER_H) == -1)
         {
-            //Przerwanie
+            if (!running)
+            {
+                break;
+            }
         }
         
         sem_lock(SEM_SHARED);
@@ -203,5 +235,8 @@ int main()
             }
         }
     }
+
+    //Czyszczenie zasobów IPC
+    cleanup_ipc();
     return 0;
 }

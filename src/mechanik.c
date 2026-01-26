@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <sys/msg.h>
 #include <time.h>
+#include <sys/wait.h>
 
 //Zmienne globalne
 int id_stanowiska = -1;
@@ -99,6 +100,31 @@ void wykonaj_prace(int czas_pracy)
 
 int main(int argc, char *argv[])
 {
+    if (argc == 1)
+    {
+        char arg_buff[16];
+
+        for (int i = 0; i < MAX_STANOWISK; i++)
+        {
+            pid_t pid = fork();
+            if (pid == 0)
+            {
+                snprintf(arg_buff, sizeof(arg_buff), "%d", i);
+                execl("./mechanik", "mechanik", arg_buff, NULL);
+                perror("execl mechanik failed");
+                exit(1);
+            }
+            else if (pid < 0)
+            {
+                perror("fork mechanik failed");
+                exit(1);
+            }
+        }
+
+        while (wait(NULL) > 0);
+        return 0;
+    }
+
     srand(getpid() ^ time(NULL));
 
     if (argc < 2)

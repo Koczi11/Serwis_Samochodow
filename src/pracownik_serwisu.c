@@ -8,10 +8,12 @@
 #include <signal.h>
 #include <sys/msg.h>
 #include <errno.h>
+#include <sys/wait.h>
 
 //Progi do otwierania dodatkowych okienek
 #define K1 3
 #define K2 5
+#define LICZBA_PRACOWNIKOW 3
 
 //Funkcja sprawdzająca długość kolejki oczekujących klientów
 int sprawdz_dlugosc_kolejki()
@@ -79,6 +81,31 @@ void handle_pozar(int sig)
 
 int main(int argc, char *argv[])
 {
+    if (argc == 1)
+    {
+        char arg_buff[16];
+
+        for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+        {
+            pid_t pid = fork();
+            if (pid == 0)
+            {
+                snprintf(arg_buff, sizeof(arg_buff), "%d", i);
+                execl("./pracownik_serwisu", "pracownik_serwisu", arg_buff, NULL);
+                perror("execl pracownik_serwisu failed");
+                exit(1);
+            }
+            else if (pid < 0)
+            {
+                perror("fork pracownik_serwisu failed");
+                exit(1);
+            }
+        }
+
+        while (wait(NULL) > 0);
+        return 0;
+    }
+
     if (argc < 2)
     {
         fprintf(stderr, "Brak ID pracownika serwisu\n");

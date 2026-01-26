@@ -1,15 +1,12 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11
 
-ALL = serwis pracownik_serwisu kierowca mechanik kierownik kasjer
+ALL = pracownik_serwisu kierowca mechanik kierownik kasjer generator
 
 all: $(ALL)
 
 serwis_ipc.o: src/serwis_ipc.c src/serwis_ipc.h
 	$(CC) $(CFLAGS) -c src/serwis_ipc.c -o serwis_ipc.o
-
-serwis: src/main.c serwis_ipc.o src/serwis_ipc.h
-	$(CC) $(CFLAGS) -o serwis src/main.c serwis_ipc.o
 
 pracownik_serwisu: src/pracownik_serwisu.c serwis_ipc.o src/serwis_ipc.h
 	$(CC) $(CFLAGS) -o pracownik_serwisu src/pracownik_serwisu.c serwis_ipc.o
@@ -26,8 +23,8 @@ kierownik: src/kierownik.c serwis_ipc.o src/serwis_ipc.h
 kasjer: src/kasjer.c serwis_ipc.o src/serwis_ipc.h
 	$(CC) $(CFLAGS) -o kasjer src/kasjer.c serwis_ipc.o
 
+generator: src/generator.c
+	$(CC) $(CFLAGS) -o generator src/generator.c
+
 clean:
 	rm -f $(ALL) *.o raport.txt log.txt
-
-run: all
-	./serwis

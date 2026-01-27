@@ -72,6 +72,15 @@ int aktywni_mechanicy()
         }
     }
     sem_unlock(SEM_STANOWISKA);
+    if (!aktywni)
+    {
+        sem_lock(SEM_LICZNIKI);
+        if (shared->liczba_oczekujacych_klientow > 0)
+        {
+            aktywni = 1;
+        }
+        sem_unlock(SEM_LICZNIKI);
+    }
     return aktywni;
 }
 
@@ -193,6 +202,8 @@ static void *obsluz_klienta(void *arg)
 
     //Znajdowanie wolnego stanowiska
     int mechanik_id = -1;
+assign_mechanic:
+    mechanik_id = -1;
     while (mechanik_id == -1)
     {
         if (ewakuacja)
@@ -282,6 +293,12 @@ static void *obsluz_klienta(void *arg)
             }
             safe_wait_seconds(0.1);
             continue;
+        }
+
+        if (msg.samochod.id_stanowiska_roboczego < 0)
+        {
+            oddane_mechanikowi = 0;
+            goto assign_mechanic;
         }
 
         if (msg.samochod.dodatkowa_usterka)
@@ -543,7 +560,8 @@ int main(int argc, char *argv[])
             if (czy_aktywny && otwarte)
             {
                 //Pobieramy zgłoszenie rejestracji
-                if (recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                int r = recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT);
+                if (r == 0)
                 {
                     odebrano = 1;
 
@@ -590,14 +608,28 @@ int main(int argc, char *argv[])
 
                     continue;
                 }
+                if (r == -2)
+                {
+                    exit(0);
+                }
             }
 
             //Zamykanie zmiany jeśli serwis jest zamknięty i brak aktywnych mechaników
             if (!otwarte)
             {
                 int wypisani = 0;
-                while (recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                while (1)
                 {
+                    int r = recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT);
+                    if (r == -2)
+                    {
+                        exit(0);
+                    }
+                    if (r != 0)
+                    {
+                        break;
+                    }
+
                     printf("[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);

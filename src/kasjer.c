@@ -32,6 +32,15 @@ int aktywni_mechanicy()
         }
     }
     sem_unlock(SEM_STANOWISKA);
+    if (!aktywni)
+    {
+        sem_lock(SEM_LICZNIKI);
+        if (shared->liczba_oczekujacych_klientow > 0)
+        {
+            aktywni = 1;
+        }
+        sem_unlock(SEM_LICZNIKI);
+    }
     return aktywni;
 }
 
@@ -120,7 +129,12 @@ int main()
             sem_unlock(SEM_STATUS);
 
             //Obsługa płatności klientów
-            if(recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT) != -1)
+            int rcv = recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT);
+            if (rcv == -2)
+            {
+                exit(0);
+            }
+            if (rcv == 0)
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);

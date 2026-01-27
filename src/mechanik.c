@@ -258,23 +258,28 @@ int main(int argc, char *argv[])
             if (zamknij_po)
             {
                 //Sprawdzenie czy są jeszcze auta do obsłużenia
-                if (recv_msg(msg_id_mechanik, &msg, 100 + id_stanowiska, IPC_NOWAIT) != -1)
+                int r = recv_msg(msg_id_mechanik, &msg, 100 + id_stanowiska, IPC_NOWAIT);
+                if (r == 0)
                 {
-                    //Obsługa auta przed zamknięciem stanowiska
-                    msg.mtype = MSG_REJESTRACJA;
+                    //Powiadomienie pracownika o konieczności ponownego przydziału
+                    msg.mtype = MSG_MECHANIK_EVENT_PID(msg.samochod.pid_kierowcy);
                     msg.samochod.id_stanowiska_roboczego = -1;
-                    sem_lock(SEM_LICZNIKI);
-                    shared->liczba_oczekujacych_klientow++;
-                    sem_unlock(SEM_LICZNIKI);
+                    msg.samochod.dodatkowa_usterka = 0;
+                    msg.samochod.dodatkowy_koszt = 0;
+                    msg.samochod.dodatkowy_czas = 0;
 
-                    printf("[MECHANIK %d] Auto %d wróciło do kolejki oczekujących\n", getpid(), msg.samochod.pid_kierowcy);
-                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Auto %d wróciło do kolejki oczekujących", getpid(), msg.samochod.pid_kierowcy);
+                    printf("[MECHANIK %d] Auto %d wymaga ponownego przydziału przed zamknięciem\n", getpid(), msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Auto %d wymaga ponownego przydziału przed zamknięciem", getpid(), msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);
-                    
-                    if (send_msg(msg_id_kierowca, &msg) == -1)
+
+                    if (send_msg(msg_id_mechanik, &msg) == -1)
                     {
-                        perror("[MECHANIK] Błąd odsyłania samochodu do kolejki");
+                        perror("[MECHANIK] Błąd powiadomienia o ponownym przydziale");
                     }
+                }
+                else if (r == -2)
+                {
+                    exit(0);
                 }
 
                 printf("[MECHANIK %d] Zamykam stanowisko %d\n", getpid(), id_stanowiska);
@@ -421,12 +426,8 @@ int main(int argc, char *argv[])
                         break;
                     }
 
-                    int r = recv_msg(msg_id_mechanik, &odp, 100 + id_stanowiska, 0);
-                    if (r == -2)
-                    {
-                        exit(0);
-                    }
-                    if (r != -1)
+                    int r = recv_msg(msg_id_mechanik, &odp, 100 + id_stanowiska, IPC_NOWAIT);
+                    if (r == 0)
                     {
                         //Sprawdzenie czy to odpowiedź dla tego auta
                         if (odp.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
@@ -439,10 +440,13 @@ int main(int argc, char *argv[])
                             send_msg(msg_id_mechanik, &odp);
                         }
                     }
+                    else if (r == -2)
+                    {
+                        exit(0);
+                    }
                     else if (errno != EINTR)
                     {
-                        perror("[MECHANIK] Błąd odbierania decyzji");
-                        exit(1);
+                        safe_wait_seconds(0.2);
                     }
                 }
 

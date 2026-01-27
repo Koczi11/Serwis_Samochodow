@@ -139,10 +139,11 @@ int main()
     //Dołączenie do kolejki oczekujących klientów
     sem_lock(SEM_LICZNIKI);
     shared->liczba_oczekujacych_klientow++;
+    int liczba_oczekujacych = shared->liczba_oczekujacych_klientow;
     sem_unlock(SEM_LICZNIKI);
 
-    printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
-    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d", getpid(), shared->liczba_oczekujacych_klientow);
+    printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), liczba_oczekujacych);
+    snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d", getpid(), liczba_oczekujacych);
     zapisz_log(buffer);
 
     //Wysłanie do rejestracji

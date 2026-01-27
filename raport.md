@@ -136,7 +136,8 @@ Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków praco
 	![screen4](/screens/d7331c5b-554d-4bd9-86c2-ce56105411b7.png)
 	![screen5](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
 
-	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione. **Test zaliczony**
+	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione.
+**Test zaliczony**
 
 ---
 

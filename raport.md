@@ -127,8 +127,6 @@ Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków praco
 	* Sprawdzamy czy pracownicy serwisu poprawnie odsyłają komunikaty.
 
 
----
-
 	* Generator poprawnie stowrzył kierowców i zakończył działanie.
 	![screen1](/screens/e96938f4-29d9-495e-aca6-47d4ca2aa41d.png)
 	![screen2](/screens/95b26fd4-6558-43e5-adfb-f057a848e3c1.png)
@@ -140,7 +138,6 @@ Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków praco
 	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione. **Test zaliczony**
 
 
----
 
 ### Test 2
 Sprawdzenie poprawności działania semaforów SEM_STANOWISKA przy wielu pracownikach obsługi próbujących jednocześnie przedzielić zadanie.

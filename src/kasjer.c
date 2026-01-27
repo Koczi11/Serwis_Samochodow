@@ -63,6 +63,10 @@ int main()
     Msg msg;
     char buffer[256];
 
+    printf("[KASJER] Uruchomiony\n");
+    snprintf(buffer, sizeof(buffer), "[KASJER] Uruchomiony");
+    zapisz_log(buffer);
+    
     //Pętla dni pracy
     while (1)
     {

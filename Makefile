@@ -23,8 +23,8 @@ kierownik: src/kierownik.c serwis_ipc.o src/serwis_ipc.h
 kasjer: src/kasjer.c serwis_ipc.o src/serwis_ipc.h
 	$(CC) $(CFLAGS) -o kasjer src/kasjer.c serwis_ipc.o
 
-generator: src/generator.c
-	$(CC) $(CFLAGS) -pthread -o generator src/generator.c
+generator: src/generator.c serwis_ipc.o src/serwis_ipc.h
+	$(CC) $(CFLAGS) -pthread -o generator src/generator.c serwis_ipc.o
 
 clean:
 	rm -f $(ALL) *.o raport.txt log.txt

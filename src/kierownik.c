@@ -261,7 +261,7 @@ int main()
             sem_unlock(SEM_STANOWISKA);
 
             //10% szansy na zdarzenie
-            int los = rand () % 10;
+            int los = rand () % 100;
             if (pid > 0 && los < 10)
             {
                 int akcja = rand() % 4;

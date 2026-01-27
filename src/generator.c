@@ -14,8 +14,8 @@
 
 #include "serwis_ipc.h"
 
-#define DEFAULT_KIEROWCY 10000
-#define DEFAULT_MAX_ACTIVE 300
+#define DEFAULT_KIEROWCY 5000
+#define DEFAULT_MAX_ACTIVE 1000
 
 //Flaga sterująca wątkiem reaper i licznik aktywnych dzieci
 static volatile sig_atomic_t running = 1;
@@ -83,6 +83,8 @@ int main(int argc, char *argv[])
     int liczba = DEFAULT_KIEROWCY;
     int max_active = DEFAULT_MAX_ACTIVE;
 
+    char buffer[256];
+
     if (argc >= 2)
     {
         int tmp = atoi(argv[1]);
@@ -134,7 +136,9 @@ int main(int argc, char *argv[])
         pthread_detach(reaper_thread);
     }
 
-    printf("[GENERATOR] Start generowania %d kierowców (max aktywnych: %d)\n", liczba, max_active);
+    printf("[GENERATOR] Start generowania %d kierowców\n", liczba);
+    snprintf(buffer, sizeof(buffer), "[GENERATOR] Start generowania %d kierowców", liczba);
+    zapisz_log(buffer);
 
     for (int i = 0; i < liczba; i++)
     {
@@ -189,6 +193,9 @@ int main(int argc, char *argv[])
     }
 
     printf("[GENERATOR] Zakończono uruchamianie kierowców\n");
+    snprintf(buffer, sizeof(buffer), "[GENERATOR] Zakończono uruchamianie kierowców");;
+    zapisz_log(buffer);
+
     pthread_mutex_lock(&reap_mutex);
     while (atomic_load(&active_children) > 0)
     {

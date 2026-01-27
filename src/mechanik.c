@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
                 msg.samochod.id_stanowiska_roboczego = id_stanowiska;
 
                 //Wysyłamy do Pracownika Serwisu
-                msg.mtype = MSG_OD_MECHANIKA;
+                msg.mtype = MSG_MECHANIK_EVENT_PID(msg.samochod.pid_kierowcy);
                 send_msg(msg_id_mechanik, &msg);
 
                 printf("[MECHANIK %d] Zgłoszono dodatkową usterkę do Pracownika Serwisu\n", getpid());
@@ -536,7 +536,7 @@ int main(int argc, char *argv[])
             snprintf(buffer, sizeof(buffer), "[MECHANIK %d] Koniec naprawy auta %d. Przekazuję zakres prac", getpid(), msg.samochod.pid_kierowcy);
             zapisz_log(buffer);
 
-            msg.mtype = MSG_OD_MECHANIKA;
+            msg.mtype = MSG_MECHANIK_EVENT_PID(msg.samochod.pid_kierowcy);
             msg.samochod.dodatkowa_usterka = 0;
             msg.samochod.id_stanowiska_roboczego = id_stanowiska;
             msg.samochod.dodatkowy_koszt = dodatkowy_koszt_zaakceptowany;

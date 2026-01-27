@@ -62,16 +62,6 @@ int main()
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Marka samochodu: %s. Potrzebna naprawa: %s", getpid(), msg.samochod.marka, u.nazwa);
     zapisz_log(buffer);
 
-    //Sprawdzenie czy marka jest obsługiwana
-    if (!marka_obslugiwana(msg.samochod.marka))
-    {
-        printf("[KIEROWCA %d] Marka nieobsługiwana, odjeżdżam\n", getpid());
-        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Marka nieobsługiwana, odjeżdżam", getpid());
-        zapisz_log(buffer);
-
-        return 0;
-    }
-
     //Czekanie na otwarcie serwisu
     while(1)
     {
@@ -209,6 +199,15 @@ int main()
         return 0;
     }
 
+    if (msg.samochod.koszt < 0)
+    {
+        printf("[KIEROWCA %d] Marka nieobsługiwana przez serwis, odjeżdżam\n", getpid());
+        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Marka nieobsługiwana przez serwis, odjeżdżam", getpid());
+        zapisz_log(buffer);
+
+        return 0;
+    }
+
     printf("[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s\n", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymana wycena: %d PLN, %d s", getpid(), msg.samochod.koszt, msg.samochod.czas_naprawy);
     zapisz_log(buffer);
@@ -217,7 +216,7 @@ int main()
     //2% szans na rezygnację
     int rezygnacja = (rand() % 100) < 2;
 
-    msg.mtype = MSG_DECYZJA_USLUGI(msg.samochod.id_pracownika);
+    msg.mtype = MSG_DECYZJA_USLUGI_PID(getpid());
     msg.samochod.zaakceptowano = !rezygnacja;
 
     s = send_msg(msg_id_kierowca, &msg);
@@ -292,7 +291,7 @@ int main()
             //20% szans na odrzucenie dodatkowej usterki
             int odmowa = (rand() % 100) < 20;
 
-            msg.mtype = MSG_DECYZJA_DODATKOWA(msg.samochod.id_pracownika);
+            msg.mtype = MSG_DECYZJA_DODATKOWA_PID(getpid());
             msg.samochod.zaakceptowano = !odmowa;
 
             s = send_msg(msg_id_kierowca, &msg);

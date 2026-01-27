@@ -32,6 +32,16 @@
 #define MSG_DECYZJA_DODATKOWA(id) (MSG_PRACOWNIK_BASE(id) + 2)
 #define MSG_POTWIERDZENIE_PLATNOSCI(id) (MSG_PRACOWNIK_BASE(id) + 3)
 
+//Typy per-kierowca (dla obsługi wielowątkowej pracowników)
+#define MSG_DECYZJA_USLUGI_BASE 200000
+#define MSG_DECYZJA_USLUGI_PID(pid) (MSG_DECYZJA_USLUGI_BASE + (pid))
+#define MSG_DECYZJA_DODATKOWA_BASE 300000
+#define MSG_DECYZJA_DODATKOWA_PID(pid) (MSG_DECYZJA_DODATKOWA_BASE + (pid))
+#define MSG_POTWIERDZENIE_PLATNOSCI_BASE 400000
+#define MSG_POTWIERDZENIE_PLATNOSCI_PID(pid) (MSG_POTWIERDZENIE_PLATNOSCI_BASE + (pid))
+#define MSG_MECHANIK_EVENT_BASE 500000
+#define MSG_MECHANIK_EVENT_PID(pid) (MSG_MECHANIK_EVENT_BASE + (pid))
+
 //SEMAFORY
 #define SEM_SHARED 0                //Globalny semafor awaryjny
 #define SEM_STANOWISKA 1            //Ochrona shared->stanowiska[]

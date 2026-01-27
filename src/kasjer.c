@@ -135,7 +135,7 @@ int main()
                 zapisz_raport(buffer);
 
                 //Odsyłamy potwierdzenie płatności do kierowcy
-                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI(msg.samochod.id_pracownika);
+                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI_PID(msg.samochod.pid_kierowcy);
                 msg.samochod.dodatkowa_usterka = 0;
                 
                 if(send_msg(msg_id_kasjer, &msg) == -1)
@@ -219,7 +219,7 @@ int main()
                 snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
                 zapisz_raport(buffer);
 
-                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI(msg.samochod.id_pracownika);
+                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI_PID(msg.samochod.pid_kierowcy);
                 msg.samochod.dodatkowa_usterka = 0;
 
                 if(send_msg(msg_id_kasjer, &msg) == -1)

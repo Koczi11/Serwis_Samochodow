@@ -9,7 +9,7 @@ serwis_ipc.o: src/serwis_ipc.c src/serwis_ipc.h
 	$(CC) $(CFLAGS) -c src/serwis_ipc.c -o serwis_ipc.o
 
 pracownik_serwisu: src/pracownik_serwisu.c serwis_ipc.o src/serwis_ipc.h
-	$(CC) $(CFLAGS) -o pracownik_serwisu src/pracownik_serwisu.c serwis_ipc.o
+	$(CC) $(CFLAGS) -pthread -o pracownik_serwisu src/pracownik_serwisu.c serwis_ipc.o
 
 kierowca: src/kierowca.c serwis_ipc.o src/serwis_ipc.h
 	$(CC) $(CFLAGS) -o kierowca src/kierowca.c serwis_ipc.o

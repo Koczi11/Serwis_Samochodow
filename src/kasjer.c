@@ -214,47 +214,6 @@ int main()
                     }
                 }
             }
-
-            //Nieblokujące oczekiwanie na płatność
-            int r = recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT);
-            if (r == -2)
-            {
-                exit(0);
-            }
-            if (r != -1)
-            {
-                printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
-                snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
-                zapisz_log(buffer);
-
-                dzienny_utarg += msg.samochod.koszt;
-
-                snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
-                zapisz_raport(buffer);
-
-                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI_PID(msg.samochod.pid_kierowcy);
-                msg.samochod.dodatkowa_usterka = 0;
-
-                if(send_msg(msg_id_kasjer, &msg) == -1)
-                {
-                    perror("[KASJER] Błąd wysłania wiadomości");
-                }
-                else
-                {
-                    printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
-                    snprintf(buffer, sizeof(buffer), "[KASJER] Płatność zakończona dla klienta %d", msg.samochod.pid_kierowcy);
-                    zapisz_log(buffer);
-
-                    sem_lock(SEM_LICZNIKI);
-                    if (shared->auta_w_serwisie > 0)
-                    {
-                        shared->auta_w_serwisie--;
-                    }
-                    sem_unlock(SEM_LICZNIKI);
-                }
-
-                continue;
-            }
         }
     }
     return 0;

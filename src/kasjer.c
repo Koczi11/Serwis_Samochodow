@@ -139,7 +139,6 @@ int main()
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 zapisz_log(buffer);
-                //safe_wait_seconds(2);
 
                 //Aktualizacja dziennego utargu
                 dzienny_utarg += msg.samochod.koszt;
@@ -256,8 +255,6 @@ int main()
 
                 continue;
             }
-
-            safe_wait_seconds(0.2);
         }
     }
     return 0;

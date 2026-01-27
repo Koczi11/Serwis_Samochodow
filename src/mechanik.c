@@ -326,8 +326,6 @@ int main(int argc, char *argv[])
                 {
                     continue;
                 }
-
-                safe_wait_seconds(0.2);
             }
 
             if (ewakuacja)
@@ -446,7 +444,7 @@ int main(int argc, char *argv[])
                     }
                     else if (errno != EINTR)
                     {
-                        safe_wait_seconds(0.2);
+                        //Brak wiadomości, czekamy dalej
                     }
                 }
 

@@ -120,8 +120,6 @@ int main()
                     {
                         break;
                     }
-
-                    safe_wait_seconds(0.2);
                 }
                 continue;
             }

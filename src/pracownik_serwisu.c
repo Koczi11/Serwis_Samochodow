@@ -184,7 +184,6 @@ static void *obsluz_klienta(void *arg)
         {
             continue;
         }
-        safe_wait_seconds(0.1);
     }
 
     if (!msg.samochod.zaakceptowano)
@@ -258,8 +257,6 @@ assign_mechanic:
             {
                 continue;
             }
-
-            safe_wait_seconds(0.1);
         }
     }
 
@@ -291,7 +288,7 @@ assign_mechanic:
             {
                 continue;
             }
-            safe_wait_seconds(0.1);
+
             continue;
         }
 
@@ -332,8 +329,6 @@ assign_mechanic:
                 {
                     continue;
                 }
-
-                safe_wait_seconds(0.1);
             }
 
             msg.mtype = 100 + msg.samochod.id_stanowiska_roboczego;
@@ -371,8 +366,6 @@ assign_mechanic:
             {
                 continue;
             }
-
-            safe_wait_seconds(0.1);
         }
 
         msg.mtype = MSG_KIEROWCA(pid);

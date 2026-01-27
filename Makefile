@@ -24,7 +24,7 @@ kasjer: src/kasjer.c serwis_ipc.o src/serwis_ipc.h
 	$(CC) $(CFLAGS) -o kasjer src/kasjer.c serwis_ipc.o
 
 generator: src/generator.c
-	$(CC) $(CFLAGS) -o generator src/generator.c
+	$(CC) $(CFLAGS) -pthread -o generator src/generator.c
 
 clean:
 	rm -f $(ALL) *.o raport.txt log.txt

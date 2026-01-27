@@ -24,6 +24,7 @@ int main()
 {
     //Dołączenie do IPC
     init_ipc(0);
+    join_service_group();
 
     //Rejestracja handlera pożaru
     struct sigaction sa;
@@ -82,10 +83,10 @@ int main()
             return 0;
         }
 
-        sem_lock(SEM_SHARED);
+        sem_lock(SEM_STATUS);
         int otwarte = shared->serwis_otwarty;
         int godzina = shared->aktualna_godzina;
-        sem_unlock(SEM_SHARED);
+        sem_unlock(SEM_STATUS);
 
         if (otwarte)
         {
@@ -107,7 +108,31 @@ int main()
                 snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis zamknięty, ale czekam na otwarcie...", getpid());
                 zapisz_log(buffer);
 
-                wait_serwis_otwarty();
+                sem_lock(SEM_LICZNIKI);
+                shared->liczba_czekajacych_na_otwarcie++;
+                sem_unlock(SEM_LICZNIKI);
+
+                while (1)
+                {
+                    if (ewakuacja)
+                    {
+                        printf("[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!\n", getpid());
+                        snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Otrzymano sygnał pożaru! Uciekam!", getpid());
+                        zapisz_log(buffer);
+                        return 0;
+                    }
+
+                    sem_lock(SEM_STATUS);
+                    int otwarte_po = shared->serwis_otwarty;
+                    sem_unlock(SEM_STATUS);
+
+                    if (otwarte_po)
+                    {
+                        break;
+                    }
+
+                    safe_wait_seconds(0.2);
+                }
                 continue;
             }
             else
@@ -122,22 +147,26 @@ int main()
     }
 
     //Dołączenie do kolejki oczekujących klientów
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_LICZNIKI);
     shared->liczba_oczekujacych_klientow++;
-    sem_unlock(SEM_SHARED);
+    sem_unlock(SEM_LICZNIKI);
 
     printf("[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d\n", getpid(), shared->liczba_oczekujacych_klientow);
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Dołączam do kolejki. Liczba oczekujących klientów: %d", getpid(), shared->liczba_oczekujacych_klientow);
     zapisz_log(buffer);
 
     //Wysłanie do rejestracji
-    if (send_msg(msg_id, &msg) == -1)
+    int s = send_msg(msg_id_kierowca, &msg);
+    if (s == -2)
+    {
+        return 0;
+    }
+    if (s == -1)
     {
         perror("[KIEROWCA] Błąd rejestracji");
         return 1;
     }
 
-    signal_nowa_wiadomosc();
     printf("[KIEROWCA %d] Samochód wysłany do rejestracji\n", getpid());
     snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Samochód wysłany do rejestracji", getpid());
     zapisz_log(buffer);
@@ -153,19 +182,22 @@ int main()
             return 0;
         }
 
-        if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) != -1)
+        int r = recv_msg(msg_id_kierowca, &msg, MSG_KIEROWCA(getpid()), 0);
+        if (r == -2)
+        {
+            return 0;
+        }
+        if (r != -1)
         {
             //Otrzymano wycenę
             break;
         }
 
-        if (errno != ENOMSG && errno != EINTR)
+        if (errno != EINTR)
         {
             perror("[KIEROWCA] Błąd odbioru wyceny");
             return 1;
         }
-
-        wait_nowa_wiadomosc(0);
     }
 
     if (msg.samochod.ewakuacja)
@@ -188,12 +220,16 @@ int main()
     msg.mtype = MSG_DECYZJA_USLUGI(msg.samochod.id_pracownika);
     msg.samochod.zaakceptowano = !rezygnacja;
 
-    if (send_msg(msg_id, &msg) == -1)
+    s = send_msg(msg_id_kierowca, &msg);
+    if (s == -2)
+    {
+        return 0;
+    }
+    if (s == -1)
     {
         perror("[KIEROWCA] Błąd wysłania decyzji");
         return 1;
     }
-    signal_nowa_wiadomosc();
 
     if (rezygnacja)
     {
@@ -219,11 +255,15 @@ int main()
         }
 
         //Odbiór wiadomości zwrotnych
-        if (recv_msg(msg_id, &msg, MSG_KIEROWCA(getpid()), IPC_NOWAIT) == -1)
+        int r = recv_msg(msg_id_kierowca, &msg, MSG_KIEROWCA(getpid()), 0);
+        if (r == -2)
         {
-            if (errno == ENOMSG)
+            return 0;
+        }
+        if (r == -1)
+        {
+            if (errno == EINTR)
             {
-                wait_nowa_wiadomosc(0);
                 continue;
             }
             perror("[KIEROWCA] Błąd odbioru wiadomości");
@@ -255,8 +295,11 @@ int main()
             msg.mtype = MSG_DECYZJA_DODATKOWA(msg.samochod.id_pracownika);
             msg.samochod.zaakceptowano = !odmowa;
 
-            send_msg(msg_id, &msg);
-            signal_nowa_wiadomosc();
+            s = send_msg(msg_id_kierowca, &msg);
+            if (s == -2)
+            {
+                return 0;
+            }
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
             snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
             zapisz_log(buffer);

@@ -13,15 +13,14 @@
 //Progi do otwierania dodatkowych okienek
 #define K1 3
 #define K2 5
-#define LICZBA_PRACOWNIKOW 3
 
 //Funkcja sprawdzająca długość kolejki oczekujących klientów
 int sprawdz_dlugosc_kolejki()
 {
     int liczba = 0;
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_LICZNIKI);
     liczba = shared->liczba_oczekujacych_klientow;
-    sem_unlock(SEM_SHARED);
+    sem_unlock(SEM_LICZNIKI);
     return liczba;
 }
 
@@ -30,7 +29,7 @@ int znajdz_wolne_stanowisko(const char *marka)
 {
     int is_UY = (strcmp(marka, "U") == 0 || strcmp(marka, "Y") == 0);
 
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_STANOWISKA);
     for (int i = 0; i < MAX_STANOWISK; i++)
     {
         if (i == 7 && !is_UY)
@@ -44,11 +43,11 @@ int znajdz_wolne_stanowisko(const char *marka)
         {
             //Oznaczamy stanowisko jako zajęte
             shared->stanowiska[i].zajete = 1;
-            sem_unlock(SEM_SHARED);
+            sem_unlock(SEM_STANOWISKA);
             return i;
         }
     }
-    sem_unlock(SEM_SHARED);
+    sem_unlock(SEM_STANOWISKA);
     return -1;
 }
 
@@ -56,7 +55,7 @@ int znajdz_wolne_stanowisko(const char *marka)
 int aktywni_mechanicy()
 {
     int aktywni = 0;
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_STANOWISKA);
     for (int i = 0; i < MAX_STANOWISK; i++)
     {
         if (shared->stanowiska[i].zajete)
@@ -65,7 +64,7 @@ int aktywni_mechanicy()
             break;
         }
     }
-    sem_unlock(SEM_SHARED);
+    sem_unlock(SEM_STANOWISKA);
     return aktywni;
 }
 
@@ -116,6 +115,7 @@ int main(int argc, char *argv[])
 
     //Dołączenie do IPC
     init_ipc(0);
+    join_service_group();
 
     //Rejestracja handlera pożaru
     struct sigaction sa;
@@ -145,8 +145,28 @@ int main(int argc, char *argv[])
             ewakuacja = 0;
         }
 
-        //Czekanie na otwarcie serwisu
-        wait_serwis_otwarty();
+        //Czekanie na otwarcie serwisu (komunikat)
+        while (1)
+        {
+            int r = recv_msg(msg_id_kierowca, &msg, MSG_CTRL_OPEN_PRACOWNIK, 0);
+            if (r == 0)
+            {
+                break;
+            }
+            if (r == -2)
+            {
+                exit(0);
+            }
+
+            if (errno == EINTR && ewakuacja)
+            {
+                printf("[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!\n", id_pracownika);
+                snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!", id_pracownika);
+                zapisz_log(buffer);
+                ewakuacja = 0;
+                continue;
+            }
+        }
 
         if (ewakuacja)
         {
@@ -179,9 +199,9 @@ int main(int argc, char *argv[])
                 break;
             }
 
-            sem_lock(SEM_SHARED);
+            sem_lock(SEM_STATUS);
             int otwarte = shared->serwis_otwarty;
-            sem_unlock(SEM_SHARED);
+            sem_unlock(SEM_STATUS);
 
             //Sterowanie otwieraniem/zamykaniem dodatkowych stanowisk
             if (otwarte)
@@ -226,21 +246,16 @@ int main(int argc, char *argv[])
                 }
             }
 
-            //Jeśli pracownik nie jest aktywny i serwis jest otwarty, to czeka
+            //Jeśli pracownik nie jest aktywny i serwis jest otwarty, pomija rejestrację
             if (!czy_aktywny && otwarte)
             {
-                if (wait_nowa_wiadomosc(0) == -1 && ewakuacja)
-                {
-                    break;
-                }
-
-                continue;
+                //Obsługa pozostałych komunikatów bez aktywnej rejestracji
             }
 
             int odebrano = 0;
 
             //Odbiór komunikatów od mechaników
-            if (recv_msg(msg_id, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) != -1)
+            if (recv_msg(msg_id_mechanik, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
 
@@ -252,8 +267,7 @@ int main(int argc, char *argv[])
                     zapisz_log(buffer);
 
                     msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
-                    send_msg(msg_id, &msg);
-                    signal_nowa_wiadomosc();
+                    send_msg(msg_id_kierowca, &msg);
                 }
                 else
                 {
@@ -268,31 +282,30 @@ int main(int argc, char *argv[])
                     msg.samochod.koszt = koszt_podstawowy + koszt_dodatkowy;
 
                     msg.mtype = MSG_KASA;
-                    send_msg(msg_id, &msg);
-                    signal_nowa_wiadomosc();
+                    send_msg(msg_id_kasjer, &msg);
                 }
 
                 continue;
             }
 
             //Odbiór potwierdzenia płatności z kasy i przekazanie do kierowcy
-            if (recv_msg(msg_id, &msg, MSG_POTWIERDZENIE_PLATNOSCI(id_pracownika), IPC_NOWAIT) != -1)
+            if (recv_msg(msg_id_kasjer, &msg, MSG_POTWIERDZENIE_PLATNOSCI(id_pracownika), IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
                 msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
-                if (send_msg(msg_id, &msg) == -1)
+                if (send_msg(msg_id_kierowca, &msg) == -1)
                 {
                     perror("[PRACOWNIK SERWISU] Błąd wysłania potwierdzenia płatności do kierowcy");
                 }
                 else
                 {
-                    signal_nowa_wiadomosc();
+                    
                 }
                 continue;
             }
 
             //Odbiór decyzji o dodatkowej usterce od kierowcy
-            if (recv_msg(msg_id, &msg, MSG_DECYZJA_DODATKOWA(id_pracownika), IPC_NOWAIT) != -1)
+            if (recv_msg(msg_id_kierowca, &msg, MSG_DECYZJA_DODATKOWA(id_pracownika), IPC_NOWAIT) != -1)
             {
                 odebrano = 1;
                 printf("[PRACOWNIK SERWISU %d] Otrzymano decyzję od kierowcy %d. Przekazuję mechanikowi na stanowisko %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.id_stanowiska_roboczego);
@@ -301,8 +314,7 @@ int main(int argc, char *argv[])
 
                 //Przekazanie decyzji mechanikowi
                 msg.mtype = 100 + msg.samochod.id_stanowiska_roboczego;
-                send_msg(msg_id, &msg);
-                signal_nowa_wiadomosc();
+                send_msg(msg_id_mechanik, &msg);
                 
                 continue;
             }
@@ -312,19 +324,19 @@ int main(int argc, char *argv[])
             if (czy_aktywny && otwarte)
             {
                 //Pobieramy zgłoszenie rejestracji
-                if (recv_msg(msg_id, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                if (recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
                 {
                     odebrano = 1;
 
                     msg.samochod.id_pracownika = id_pracownika;
 
                     //Aktualizacja liczby oczekujących klientów
-                    sem_lock(SEM_SHARED);
+                    sem_lock(SEM_LICZNIKI);
                     if (shared->liczba_oczekujacych_klientow > 0)
                     {
                         shared->liczba_oczekujacych_klientow--;
                     }
-                    sem_unlock(SEM_SHARED);
+                    sem_unlock(SEM_LICZNIKI);
 
                     printf("[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d\n", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Obsługa kierowcy %d, marka %s, usługa ID: %d", id_pracownika, msg.samochod.pid_kierowcy, msg.samochod.marka, msg.samochod.id_uslugi);
@@ -348,8 +360,7 @@ int main(int argc, char *argv[])
 
                     //Odesłanie wyceny
                     msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
-                    send_msg(msg_id, &msg);
-                    signal_nowa_wiadomosc();
+                    send_msg(msg_id_kierowca, &msg);
 
                     //Oczekiwanie na decyzję kierowcy
                     Msg decyzja;
@@ -363,7 +374,21 @@ int main(int argc, char *argv[])
                             break;
                         }
 
-                        if (recv_msg(msg_id, &decyzja, MSG_DECYZJA_USLUGI(id_pracownika), IPC_NOWAIT) != -1)
+                        sem_lock(SEM_STATUS);
+                        int otwarte_po = shared->serwis_otwarty;
+                        sem_unlock(SEM_STATUS);
+                        if (!otwarte_po)
+                        {
+                            odebrano_decyzje = -1;
+                            break;
+                        }
+
+                        int r = recv_msg(msg_id_kierowca, &decyzja, MSG_DECYZJA_USLUGI(id_pracownika), IPC_NOWAIT);
+                        if (r == -2)
+                        {
+                            exit(0);
+                        }
+                        if (r != -1)
                         {
                             //Sprawdź czy to odpowiedź od właściwego kierowcy
                             if (decyzja.samochod.pid_kierowcy == msg.samochod.pid_kierowcy)
@@ -375,11 +400,15 @@ int main(int argc, char *argv[])
                             else
                             {
                                 //Nieodpowiedni kierowca, odsyłamy z powrotem
-                                send_msg(msg_id, &decyzja);
-                                signal_nowa_wiadomosc();
+                                send_msg(msg_id_kierowca, &decyzja);
                             }
                         }
-                        wait_nowa_wiadomosc(0);
+                        if (errno == EINTR)
+                        {
+                            continue;
+                        }
+
+                        safe_wait_seconds(0.1);
                     }
 
                     //Wyjście z pętli jeśli był pożar
@@ -394,19 +423,20 @@ int main(int argc, char *argv[])
                         snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Kierowca %d zaakceptował usługę", id_pracownika, msg.samochod.pid_kierowcy);
                         zapisz_log(buffer);
 
-                        sem_lock(SEM_SHARED);
+                        sem_lock(SEM_STATUS);
                         if (!shared->serwis_otwarty || ewakuacja)
                         {
-                            sem_unlock(SEM_SHARED);
+                            sem_unlock(SEM_STATUS);
                             printf("[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
                             snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis właśnie zamknięto. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
                             zapisz_log(buffer);
 
                             msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                             msg.samochod.koszt = 0;
+                            msg.samochod.czas_naprawy = 0;
+                            msg.samochod.dodatkowa_usterka = 0;
                             msg.samochod.ewakuacja = (ewakuacja ? 1 : 0);
-                            send_msg(msg_id, &msg);
-                            signal_nowa_wiadomosc();
+                            send_msg(msg_id_kierowca, &msg);
 
                             if (ewakuacja)
                             {
@@ -417,8 +447,11 @@ int main(int argc, char *argv[])
                         }
 
                         //Aktualizacja liczby aut w serwisie
+                        sem_unlock(SEM_STATUS);
+
+                        sem_lock(SEM_LICZNIKI);
                         shared->auta_w_serwisie++;
-                        sem_unlock(SEM_SHARED);
+                        sem_unlock(SEM_LICZNIKI);
 
                         //Znajdowanie wolnego stanowiska
                         int mechanik_id = -1;
@@ -430,11 +463,44 @@ int main(int argc, char *argv[])
                                 break;
                             }
 
+                            sem_lock(SEM_STATUS);
+                            int otwarte_po = shared->serwis_otwarty;
+                            sem_unlock(SEM_STATUS);
+                            if (!otwarte_po)
+                            {
+                                //Serwis zamknięty w trakcie oczekiwania
+                                msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
+                                msg.samochod.koszt = 0;
+                                msg.samochod.czas_naprawy = 0;
+                                msg.samochod.dodatkowa_usterka = 0;
+                                msg.samochod.ewakuacja = 0;
+                                send_msg(msg_id_kierowca, &msg);
+
+                                sem_lock(SEM_LICZNIKI);
+                                if (shared->auta_w_serwisie > 0)
+                                {
+                                    shared->auta_w_serwisie--;
+                                }
+                                sem_unlock(SEM_LICZNIKI);
+                                break;
+                            }
+
                             mechanik_id = znajdz_wolne_stanowisko(msg.samochod.marka);
 
                             if (mechanik_id == -1)
                             {
-                                wait_wolny_mechanik();
+                                Msg wolny;
+                                int r = recv_msg(msg_id_mechanik, &wolny, MSG_WOLNY_MECHANIK, IPC_NOWAIT);
+                                if (r == -2)
+                                {
+                                    exit(0);
+                                }
+                                if (r == -1 && errno == EINTR)
+                                {
+                                    continue;
+                                }
+
+                                safe_wait_seconds(0.1);
                             }
                         }
 
@@ -442,13 +508,17 @@ int main(int argc, char *argv[])
                         {
                             break;
                         }
+
+                        if (mechanik_id == -1)
+                        {
+                            continue;
+                        }
                         
                         msg.samochod.id_stanowiska_roboczego = mechanik_id;
 
                         //Przekazanie auta do mechanika
                         msg.mtype = 100 + mechanik_id;
-                        send_msg(msg_id, &msg);
-                        signal_nowa_wiadomosc();
+                        send_msg(msg_id_mechanik, &msg);
                         printf("[PRACOWNIK SERWISU %d] Przekazano auto %d do mechanika %d\n", id_pracownika, msg.samochod.pid_kierowcy, mechanik_id);
                         snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Przekazano auto %d do mechanika %d", id_pracownika, msg.samochod.pid_kierowcy, mechanik_id);
                         zapisz_log(buffer);
@@ -467,7 +537,8 @@ int main(int argc, char *argv[])
             //Zamykanie zmiany jeśli serwis jest zamknięty i brak aktywnych mechaników
             if (!otwarte)
             {
-                if (recv_msg(msg_id, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
+                int wypisani = 0;
+                while (recv_msg(msg_id_kierowca, &msg, MSG_REJESTRACJA, IPC_NOWAIT) != -1)
                 {
                     printf("[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d\n", id_pracownika, msg.samochod.pid_kierowcy);
                     snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty. Odsyłam kierowcę %d", id_pracownika, msg.samochod.pid_kierowcy);
@@ -475,13 +546,17 @@ int main(int argc, char *argv[])
 
                     msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
                     msg.samochod.koszt = 0;
-                    send_msg(msg_id, &msg);
-                    signal_nowa_wiadomosc();
+                    msg.samochod.czas_naprawy = 0;
+                    msg.samochod.dodatkowa_usterka = 0;
+                    send_msg(msg_id_kierowca, &msg);
+                    wypisani++;
+                }
 
-                    sem_lock(SEM_SHARED);
-                    if (shared->liczba_oczekujacych_klientow > 0)
-                        shared->liczba_oczekujacych_klientow--;
-                    sem_unlock(SEM_SHARED);
+                if (wypisani > 0)
+                {
+                    sem_lock(SEM_LICZNIKI);
+                    shared->liczba_oczekujacych_klientow = 0;
+                    sem_unlock(SEM_LICZNIKI);
 
                     odebrano = 1;
                     continue;
@@ -489,8 +564,19 @@ int main(int argc, char *argv[])
 
                 if (!odebrano && !aktywni_mechanicy())
                 {
+                    //Ostatnie potwierdzenia płatności do przekazania kierowcom
+                    if (recv_msg(msg_id_kasjer, &msg, MSG_POTWIERDZENIE_PLATNOSCI(id_pracownika), IPC_NOWAIT) != -1)
+                    {
+                        msg.mtype = MSG_KIEROWCA(msg.samochod.pid_kierowcy);
+                        if (send_msg(msg_id_kierowca, &msg) == -1)
+                        {
+                            perror("[PRACOWNIK SERWISU] Błąd wysłania potwierdzenia płatności do kierowcy");
+                        }
+                        continue;
+                    }
+
                     //Ostatnie sprawdzenie czy nie ma zaległych komunikatów
-                    if (recv_msg(msg_id, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) == -1)
+                    if (recv_msg(msg_id_mechanik, &msg, MSG_OD_MECHANIKA, IPC_NOWAIT) == -1)
                     {
                         printf("[PRACOWNIK SERWISU %d] Serwis zamknięty i wszystkie prace wykonane. Koniec zmiany\n", id_pracownika);
                         snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Serwis zamknięty i wszystkie prace wykonane. Koniec zmiany", id_pracownika);
@@ -500,7 +586,7 @@ int main(int argc, char *argv[])
                     else
                     {
                         //Jest komunikat do obsłużenia
-                        send_msg(msg_id, &msg);
+                        send_msg(msg_id_mechanik, &msg);
                         continue;
                     }
                 }
@@ -508,7 +594,7 @@ int main(int argc, char *argv[])
             
             if (!odebrano)
             {
-                wait_nowa_wiadomosc(0);
+                //Brak komunikatów w tej iteracji
             }
         }
 

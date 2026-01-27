@@ -8,11 +8,13 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/msg.h>
 
 #define SEC_PER_H 5.0
 
 //Flaga sterująca pętlą główną
 static volatile sig_atomic_t running = 1;
+static volatile sig_atomic_t shutdown_requested = 0;
 
 //Obsługa sygnału zamknięcia
 static void handle_sigterm(int sig)
@@ -25,29 +27,74 @@ static void handle_sigterm(int sig)
         perror("write failed");
     }
     running = 0;
+    shutdown_requested = 1;
+}
+
+static void shutdown_serwis()
+{
+    //Zamykamy serwis i budzimy procesy czekające
+    sem_lock(SEM_STATUS);
+    shared->serwis_otwarty = 0;
+    sem_unlock(SEM_STATUS);
+
+    //Ignorujemy SIGTERM/SIGINT dla kierownika
+    if (signal(SIGTERM, SIG_IGN) == SIG_ERR)
+    {
+        perror("signal SIGTERM ignore failed");
+    }
+    if (signal(SIGINT, SIG_IGN) == SIG_ERR)
+    {
+        perror("signal SIGINT ignore failed");
+    }
+
+    //Wysyłamy SIGTERM do całej grupy procesów
+    if (kill(0, SIGTERM) == -1)
+    {
+        perror("kill SIGTERM failed");
+    }
 }
 
 int main()
 {
-    //Konfiguracja obsługi sygnałów
-    if (signal(SIGTERM, handle_sigterm) == SIG_ERR)
+    //Konfiguracja obsługi sygnałów (bez SA_RESTART)
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_sigterm;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (sigaction(SIGTERM, &sa, NULL) == -1)
     {
-        perror("signal SIGTERM failed");
+        perror("sigaction SIGTERM failed");
         exit(1);
     }
-    if (signal(SIGINT, handle_sigterm) == SIG_ERR)
+    if (sigaction(SIGINT, &sa, NULL) == -1)
     {
-        perror("signal SIGINT failed");
+        perror("sigaction SIGINT failed");
         exit(1);
     }
 
     //Dołączenie do IPC (kierownik tworzy zasoby)
     init_ipc(1);
 
-    //Kierownik ignoruje sygnał pożaru, który sam wysyła do grupy
-    if (signal(SIGUSR1, SIG_IGN) == SIG_ERR)
+    if (setpgid(0, 0) == -1)
     {
-        perror("signal SIGUSR1 ignore failed");
+        perror("setpgid kierownik failed");
+    }
+
+    sem_lock(SEM_STATUS);
+    shared->pid_kierownik = getpid();
+    sem_unlock(SEM_STATUS);
+
+    //Kierownik ignoruje sygnał pożaru, który sam wysyła do grupy
+    struct sigaction sa_ign;
+    memset(&sa_ign, 0, sizeof(sa_ign));
+    sa_ign.sa_handler = SIG_IGN;
+    sigemptyset(&sa_ign.sa_mask);
+    sa_ign.sa_flags = 0;
+    if (sigaction(SIGUSR1, &sa_ign, NULL) == -1)
+    {
+        perror("sigaction SIGUSR1 ignore failed");
     }
 
     srand(time(NULL));
@@ -57,12 +104,16 @@ int main()
     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Uruchomiony. Zaczynamy dzień!");
     zapisz_log(buffer);
 
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_STATUS);
     shared->aktualna_godzina = 6;
     shared->pozar = 0;
     shared->serwis_otwarty = 0;
+    sem_unlock(SEM_STATUS);
+
+    sem_lock(SEM_LICZNIKI);
     shared->liczba_oczekujacych_klientow = 0;
-    sem_unlock(SEM_SHARED);
+    shared->liczba_czekajacych_na_otwarcie = 0;
+    sem_unlock(SEM_LICZNIKI);
 
     while (running)
     {
@@ -74,7 +125,7 @@ int main()
             }
         }
         
-        sem_lock(SEM_SHARED);
+        sem_lock(SEM_STATUS);
 
         shared->aktualna_godzina++;
         if (shared->aktualna_godzina > 23)
@@ -84,21 +135,28 @@ int main()
 
         int godzina = shared->aktualna_godzina;
         int pozar = shared->pozar;
+        sem_unlock(SEM_STATUS);
 
         //Reset pożaru o 5:00
         if (godzina == 5)
         {
-            if (pozar || shared->reset_po_pozarze)
+            sem_lock(SEM_STATUS);
+            int reset = shared->reset_po_pozarze;
+            sem_unlock(SEM_STATUS);
+
+            if (pozar || reset)
             {
+                sem_lock(SEM_LICZNIKI);
                 shared->auta_w_serwisie = 0;
                 shared->liczba_oczekujacych_klientow = 0;
+                shared->liczba_czekajacych_na_otwarcie = 0;
+                sem_unlock(SEM_LICZNIKI);
+
+                sem_lock(SEM_STATUS);
                 shared->reset_po_pozarze = 0;
                 shared->pozar = 0;
+                sem_unlock(SEM_STATUS);
 
-                sem_unlock(SEM_SHARED);
-                drain_msg_queue();
-                clear_wakeup_sems();
-                sem_lock(SEM_SHARED);
             }
 
             pozar = 0;
@@ -109,22 +167,48 @@ int main()
         {
             if (godzina >= GODZINA_OTWARCIA && godzina < GODZINA_ZAMKNIECIA)
             {
-                if (!shared->serwis_otwarty)
+                sem_lock(SEM_STATUS);
+                int otwarty = shared->serwis_otwarty;
+                sem_unlock(SEM_STATUS);
+
+                if (!otwarty)
                 {
                     printf("[KIEROWNIK] Godzina %d:00. Otwieram serwis\n", godzina);
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Otwieram serwis", godzina);
                     zapisz_log(buffer);
 
+                    sem_lock(SEM_STATUS);
                     shared->serwis_otwarty = 1;
+                    sem_unlock(SEM_STATUS);
 
-                    sem_unlock(SEM_SHARED);
-                    signal_serwis_otwarty();
-                    sem_lock(SEM_SHARED);
+                    sem_lock(SEM_LICZNIKI);
+                    shared->liczba_czekajacych_na_otwarcie = 0;
+                    sem_unlock(SEM_LICZNIKI);
+
+                    Msg ctrl;
+
+                    ctrl.mtype = MSG_CTRL_OPEN_PRACOWNIK;
+                    for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+                    {
+                        send_msg(msg_id_kierowca, &ctrl);
+                    }
+
+                    ctrl.mtype = MSG_CTRL_OPEN_MECHANIK;
+                    for (int i = 0; i < MAX_STANOWISK; i++)
+                    {
+                        send_msg(msg_id_mechanik, &ctrl);
+                    }
+
+                    ctrl.mtype = MSG_CTRL_OPEN_KASJER;
+                    send_msg(msg_id_kasjer, &ctrl);
+
                 }
             }
             else
             {
-                if (shared->serwis_otwarty)
+                sem_lock(SEM_STATUS);
+                int otwarty = shared->serwis_otwarty;
+                if (otwarty)
                 {
                     printf("[KIEROWNIK] Godzina %d:00. Zamykam serwis\n", godzina);
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Zamykam serwis", godzina);
@@ -132,12 +216,16 @@ int main()
 
                     shared->serwis_otwarty = 0;
                 }
+                sem_unlock(SEM_STATUS);
             }
         }
-        sem_unlock(SEM_SHARED);
 
         //Informacje o stanie serwisu
-        if (shared->serwis_otwarty == 0)
+        sem_lock(SEM_STATUS);
+        int otwarty_info = shared->serwis_otwarty;
+        sem_unlock(SEM_STATUS);
+
+        if (otwarty_info == 0)
         {
             if (pozar)
             {
@@ -156,14 +244,14 @@ int main()
 
         //Losowe zdarzenia
         //Kierownik losowo wpływa na pracę mechaników
-        if (shared->serwis_otwarty && !pozar)
+        if (otwarty_info && !pozar)
         {
             int stanowisko = rand() % MAX_STANOWISK;
 
             //Pobieramy PID mechanika z wylosowanego stanowiska
-            sem_lock(SEM_SHARED);
+            sem_lock(SEM_STANOWISKA);
             pid_t pid = shared->stanowiska[stanowisko].pid_mechanika;
-            sem_unlock(SEM_SHARED);
+            sem_unlock(SEM_STANOWISKA);
 
             //10% szansy na zdarzenie
             int los = rand () % 100;
@@ -215,15 +303,11 @@ int main()
                         snprintf(buffer, sizeof(buffer), "[KIEROWNIK] POŻAR! Zarządzam ewakuację całej grupy!");
                         zapisz_log(buffer);
                         
-                        sem_lock(SEM_SHARED);
+                        sem_lock(SEM_STATUS);
                         shared->serwis_otwarty = 0;
                         shared->pozar = 1;
                         shared->reset_po_pozarze = 1;
-                        sem_unlock(SEM_SHARED);
-
-                        //Czyścimy zaległe komunikaty i semafory
-                        drain_msg_queue();
-                        clear_wakeup_sems();
+                        sem_unlock(SEM_STATUS);
 
                         //Wyślij sygnał pożaru do całej grupy procesów
                         if (kill(0, SIGUSR1) == -1)
@@ -234,6 +318,11 @@ int main()
                 }
             }
         }
+    }
+
+    if (shutdown_requested)
+    {
+        shutdown_serwis();
     }
 
     //Czyszczenie zasobów IPC

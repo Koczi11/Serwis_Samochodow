@@ -19,7 +19,9 @@
 //Definicje zmiennych globalnych
 int shm_id = -1;    //Pamięć współdzielona
 int sem_id = -1;    //Semafory
-int msg_id = -1;    //Kolejka komunikatów
+int msg_id_kierowca = -1;   //Kolejka komunikatów kierowca <-> pracownik
+int msg_id_mechanik = -1;   //Kolejka komunikatów mechanik <-> pracownik
+int msg_id_kasjer = -1;     //Kolejka komunikatów kasjer <-> pracownik
 SharedData *shared = NULL;  //Wskaźnik do pamięci współdzielonej
 
 //Inicjalizacja IPC
@@ -30,9 +32,11 @@ void init_ipc(int is_parent)
     //Generowanie kluczy
     key_t key_shm = ftok(".", 'S');
     key_t key_sem = ftok(".", 'M');
-    key_t key_msg = ftok(".", 'Q');
+    key_t key_msg_kierowca = ftok(".", 'Q');
+    key_t key_msg_mechanik = ftok(".", 'W');
+    key_t key_msg_kasjer = ftok(".", 'E');
 
-    if (key_shm == -1 || key_sem == -1 || key_msg == -1)
+    if (key_shm == -1 || key_sem == -1 || key_msg_kierowca == -1 || key_msg_mechanik == -1 || key_msg_kasjer == -1)
     {
         perror("ftok failed");
         exit(1);
@@ -73,9 +77,11 @@ void init_ipc(int is_parent)
         shared->serwis_otwarty = 0;
         shared->pozar = 0;
         shared->reset_po_pozarze = 0;
-        shared->liczba_oczekujacych_klientow = 0;
+            shared->liczba_oczekujacych_klientow = 0;
+            shared->liczba_czekajacych_na_otwarcie = 0;
         shared->aktywne_okienka_obslugi = 1;
         shared->auta_w_serwisie = 0;
+            shared->pid_kierownik = -1;
 
         for (int i = 0; i < MAX_STANOWISK; i++)
         {
@@ -99,35 +105,49 @@ void init_ipc(int is_parent)
             exit(1);
         }
 
-        if (semctl(sem_id, SEM_SERWIS_OTWARTY, SETVAL, 0) == -1)
+        if (semctl(sem_id, SEM_STANOWISKA, SETVAL, 1) == -1)
         {
-            perror("semctl SEM_SERWIS_OTWARTY failed");
+            perror("semctl SEM_STANOWISKA failed");
             exit(1);
         }
 
-        if (semctl(sem_id, SEM_NOWA_WIADOMOSC, SETVAL, 0) == -1)
+        if (semctl(sem_id, SEM_LICZNIKI, SETVAL, 1) == -1)
         {
-            perror("semctl SEM_NOWA_WIADOMOSC failed");
+            perror("semctl SEM_LICZNIKI failed");
             exit(1);
         }
 
-        if (semctl(sem_id, SEM_WOLNY_MECHANIK, SETVAL, 0) == -1)
+        if (semctl(sem_id, SEM_STATUS, SETVAL, 1) == -1)
         {
-            perror("semctl SEM_WOLNY_MECHANIK failed");
+            perror("semctl SEM_STATUS failed");
             exit(1);
         }
-    
+
         if (semctl(sem_id, SEM_TIMER, SETVAL, 0) == -1)
         {
             perror("semctl SEM_TIMER failed");
             exit(1);
         }
 
-        //Kolejka komunikatów
-        msg_id = msgget(key_msg, IPC_CREAT | 0600);
-        if (msg_id == -1)
+        //Kolejki komunikatów
+        msg_id_kierowca = msgget(key_msg_kierowca, IPC_CREAT | 0600);
+        if (msg_id_kierowca == -1)
         {
-            perror("msgget failed");
+            perror("msgget kierowca failed");
+            exit(1);
+        }
+
+        msg_id_mechanik = msgget(key_msg_mechanik, IPC_CREAT | 0600);
+        if (msg_id_mechanik == -1)
+        {
+            perror("msgget mechanik failed");
+            exit(1);
+        }
+
+        msg_id_kasjer = msgget(key_msg_kasjer, IPC_CREAT | 0600);
+        if (msg_id_kasjer == -1)
+        {
+            perror("msgget kasjer failed");
             exit(1);
         }
     }
@@ -140,11 +160,24 @@ void init_ipc(int is_parent)
             perror("semget failed");
             exit(1);
         }
-
-        msg_id = msgget(key_msg, 0600);
-        if (msg_id == -1)
+        msg_id_kierowca = msgget(key_msg_kierowca, 0600);
+        if (msg_id_kierowca == -1)
         {
-            perror("msgget failed");
+            perror("msgget kierowca failed");
+            exit(1);
+        }
+
+        msg_id_mechanik = msgget(key_msg_mechanik, 0600);
+        if (msg_id_mechanik == -1)
+        {
+            perror("msgget mechanik failed");
+            exit(1);
+        }
+
+        msg_id_kasjer = msgget(key_msg_kasjer, 0600);
+        if (msg_id_kasjer == -1)
+        {
+            perror("msgget kasjer failed");
             exit(1);
         }
     }
@@ -181,12 +214,26 @@ void cleanup_ipc()
         }
     }
 
-    //Usuwanie kolejki komunikatów
-    if (msg_id != -1)
+    //Usuwanie kolejek komunikatów
+    if (msg_id_kierowca != -1)
     {
-        if (msgctl(msg_id, IPC_RMID, NULL) == -1)
+        if (msgctl(msg_id_kierowca, IPC_RMID, NULL) == -1)
         {
-            perror("msgctl IPC_RMID failed");
+            perror("msgctl IPC_RMID kierowca failed");
+        }
+    }
+    if (msg_id_mechanik != -1)
+    {
+        if (msgctl(msg_id_mechanik, IPC_RMID, NULL) == -1)
+        {
+            perror("msgctl IPC_RMID mechanik failed");
+        }
+    }
+    if (msg_id_kasjer != -1)
+    {
+        if (msgctl(msg_id_kasjer, IPC_RMID, NULL) == -1)
+        {
+            perror("msgctl IPC_RMID kasjer failed");
         }
     }
 
@@ -211,12 +258,17 @@ int marka_obslugiwana(const char *m)
 //Opuszcza semafor
 void sem_lock(int num)
 {
-    struct sembuf sb = {num, -1, 0};
+    struct sembuf sb = {num, -1, SEM_UNDO};
     while (semop(sem_id, &sb, 1) == -1)
     {
         if (errno == EINTR)
         {
             continue;
+        }
+
+        if (errno == EIDRM || errno == EINVAL)
+        {
+            exit(0);
         }
 
         perror("semop lock failed");
@@ -227,12 +279,17 @@ void sem_lock(int num)
 //Podnosi semafor
 void sem_unlock(int num)
 {
-    struct sembuf sb = {num, 1, 0};
+    struct sembuf sb = {num, 1, SEM_UNDO};
     while (semop(sem_id, &sb, 1) == -1)
     {
         if (errno == EINTR)
         {
             continue;
+        }
+
+        if (errno == EIDRM || errno == EINVAL)
+        {
+            exit(0);
         }
 
         perror("semop unlock failed");
@@ -340,6 +397,11 @@ int send_msg(int msg_id, Msg *msg)
 {
     if (msgsnd(msg_id, msg, sizeof(Samochod), 0) == -1)
     {
+        if (errno == EIDRM || errno == EINVAL)
+        {
+            return -2;
+        }
+
         if (errno == EINTR)
         {
             return -1;
@@ -359,6 +421,11 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
 
     if (wynik == -1)
     {
+        if (errno == EIDRM || errno == EINVAL)
+        {
+            return -2;
+        }
+
         if (errno == EINTR)
         {
             return -1;
@@ -375,158 +442,34 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
     return 0;
 }
 
-//Oczekuje na otwarcie serwisu
-int wait_serwis_otwarty()
-{
-    struct sembuf sb = {SEM_SERWIS_OTWARTY, -1, 0};
-
-    if (semop(sem_id, &sb, 1) == -1)
-    {
-        if (errno == EINTR)
-        {
-            return -1;
-        }
-
-        perror("semop SEM_SERWIS_OTWARTY wait failed");
-        return -1;
-    }
-
-    return 0;
-}
-
-//Sygnalizuje otwarcie serwisu
-void signal_serwis_otwarty()
-{
-    struct sembuf sb = {SEM_SERWIS_OTWARTY, 1, IPC_NOWAIT};
-
-    int waiters = semctl(sem_id, SEM_SERWIS_OTWARTY, GETNCNT);
-    if (waiters > 0)
-    {
-        for (int i = 0; i < waiters; i++)
-        {
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                perror("semop SEM_SERWIS_OTWARTY signal failed");
-                break;
-            }
-        }
-    }
-}
-
-//Sygnalizuje nową wiadomość
-void signal_nowa_wiadomosc()
-{
-    struct sembuf sb = {SEM_NOWA_WIADOMOSC, 1, IPC_NOWAIT};
-
-    int waiters = semctl(sem_id, SEM_NOWA_WIADOMOSC, GETNCNT);
-    if (waiters > 0)
-    {
-        for (int i = 0; i < waiters; i++)
-        {
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                perror("semop SEM_NOWA_WIADOMOSC signal failed");
-                break;
-            }
-        }
-    }
-}
-
-//Oczekuje na nową wiadomość
-int wait_nowa_wiadomosc(int timeout_sec)
-{
-    struct sembuf sb = {SEM_NOWA_WIADOMOSC, -1, 0};
-
-    if (timeout_sec > 0)
-    {
-        sb.sem_flg = IPC_NOWAIT;
-
-        if (semop(sem_id, &sb, 1) == -1)
-        {
-            perror("semop SEM_NOWA_WIADOMOSC wait failed");
-            return -1;
-        }
-
-        return 0;
-    }
-    else
-    {
-        if (semop(sem_id, &sb, 1) == -1)
-        {
-            if (errno == EINTR)
-            {
-                return -1;
-            }
-
-            perror("semop SEM_NOWA_WIADOMOSC wait failed");
-            return -1;
-        }
-
-        return 0;
-    }
-}
-
-//Sygnalizuje wolnego mechanika
-void signal_wolny_mechanik()
-{
-    struct sembuf sb = {SEM_WOLNY_MECHANIK, 1, IPC_NOWAIT};
-
-    int waiters = semctl(sem_id, SEM_WOLNY_MECHANIK, GETNCNT);
-    if (waiters > 0)
-    {
-        for (int i = 0; i < waiters; i++)
-        {
-            if (semop(sem_id, &sb, 1) == -1)
-            {
-                perror("semop SEM_WOLNY_MECHANIK signal failed");
-                break;
-            }
-        }
-    }
-}
-
-//Oczekuje na wolnego mechanika
-int wait_wolny_mechanik()
-{
-    struct sembuf sb = {SEM_WOLNY_MECHANIK, -1, 0};
-
-    if (semop(sem_id, &sb, 1) == -1)
-    {
-        if (errno == EINTR)
-        {
-            return -1;
-        }
-        perror("semop SEM_WOLNY_MECHANIK wait failed");
-        return -1;
-    }
-
-    return 0;
-}
-
 //Czyści kolejkę komunikatów (usuwa wszystkie zaległe wiadomości)
 void drain_msg_queue()
 {
     Msg msg;
 
-    while (msgrcv(msg_id, &msg, sizeof(Samochod), 0, IPC_NOWAIT) != -1)
+    int msg_ids[] = {msg_id_kierowca, msg_id_mechanik, msg_id_kasjer};
+    for (size_t i = 0; i < 3; i++)
     {
-        //Usunięto wiadomość
+        int id = msg_ids[i];
+        if (id == -1)
+        {
+            continue;
+        }
+
+        while (msgrcv(id, &msg, sizeof(Samochod), 0, IPC_NOWAIT) != -1)
+        {
+            //Usunięto wiadomość
+        }
     }
 }
 
-//Czyści semafory, aby nie było zaległych przebudzeń
+//Czyści semafor SEM_TIMER
 void clear_wakeup_sems()
 {
-    int sems[] = {SEM_SERWIS_OTWARTY, SEM_NOWA_WIADOMOSC, SEM_WOLNY_MECHANIK};
-    struct sembuf sb = {0, -1, IPC_NOWAIT};
-
-    for (size_t i = 0; i < 3; i++)
+    struct sembuf sb = {SEM_TIMER, -1, IPC_NOWAIT};
+    while (semop(sem_id, &sb, 1) != -1)
     {
-        sb.sem_num = sems[i];
-        while (semop(sem_id, &sb, 1) != -1)
-        {
-            //Czyszczenie semafora
-        }
+        //Czyszczenie semafora
     }
 }
 
@@ -564,4 +507,27 @@ int safe_wait_seconds(double seconds)
     }
 
     return 0;
+}
+
+//Dołącza proces do grupy procesu kierownika (dla globalnych sygnałów)
+void join_service_group()
+{
+    if (shared == NULL)
+    {
+        return;
+    }
+
+    pid_t pgid = shared->pid_kierownik;
+    if (pgid <= 0)
+    {
+        return;
+    }
+
+    if (setpgid(0, pgid) == -1)
+    {
+        if (errno != EACCES && errno != EPERM)
+        {
+            perror("setpgid join_service_group failed");
+        }
+    }
 }

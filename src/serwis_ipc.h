@@ -16,9 +16,15 @@
 #define MSG_REJESTRACJA 1
 #define MSG_KASA 30
 #define MSG_OD_MECHANIKA 40
+#define MSG_WOLNY_MECHANIK 41
+
+#define MSG_CTRL_OPEN_KIEROWCA 60000
+#define MSG_CTRL_OPEN_PRACOWNIK 15000
+#define MSG_CTRL_OPEN_MECHANIK 80
+#define MSG_CTRL_OPEN_KASJER 70
 
 //Typy dla komunikatów kierowców (unikamy kolizji z innymi mtype)
-#define MSG_KIEROWCA_BASE 50000
+#define MSG_KIEROWCA_BASE 100000
 #define MSG_KIEROWCA(pid) (MSG_KIEROWCA_BASE + (pid))
 
 #define MSG_PRACOWNIK_BASE(id) (10000 + (id) * 1000)
@@ -27,13 +33,16 @@
 #define MSG_POTWIERDZENIE_PLATNOSCI(id) (MSG_PRACOWNIK_BASE(id) + 3)
 
 //SEMAFORY
-#define SEM_SHARED 0                //Główny semafor do ochrony pamięci współdzielonej
-#define SEM_SERWIS_OTWARTY 1        //Semafor sygnalizujący, że serwis jest otwarty
-#define SEM_NOWA_WIADOMOSC 2        //Semafor sygnalizujący, że jest nowa wiadomość w kolejce
-#define SEM_WOLNY_MECHANIK 3        //Semafor sygnalizujący, że jest wolny mechanik
+#define SEM_SHARED 0                //Globalny semafor awaryjny
+#define SEM_STANOWISKA 1            //Ochrona shared->stanowiska[]
+#define SEM_LICZNIKI 2              //Ochrona liczników w shared
+#define SEM_STATUS 3                //Ochrona statusu serwisu (godzina/pożar/otwarcie)
 #define SEM_TIMER 4                 //Semafor do implementacji bezpiecznego oczekiwania z timeoutem
 
 #define NUM_SEM 5                   //Liczba semaforów
+
+//STAŁE KONFIGURACYJNE
+#define LICZBA_PRACOWNIKOW 3
 
 
 //STRUKTURY DANYCH
@@ -88,8 +97,10 @@ typedef struct
     int pozar;
     int reset_po_pozarze;
     int liczba_oczekujacych_klientow;
+    int liczba_czekajacych_na_otwarcie;
     int aktywne_okienka_obslugi;
     int auta_w_serwisie;
+    pid_t pid_kierownik;
 } SharedData;
 
 //Komunikat w kolejce 
@@ -102,7 +113,9 @@ typedef struct
 //Zmienne globalne
 extern int shm_id;
 extern int sem_id;
-extern int msg_id;
+extern int msg_id_kierowca;
+extern int msg_id_mechanik;
+extern int msg_id_kasjer;
 extern SharedData *shared;
 
 //FUNKCJE
@@ -124,18 +137,11 @@ int send_msg(int msg_id, Msg *msg);
 
 int recv_msg(int msg_id, Msg *msg, long type, int flags);
 
-int wait_serwis_otwarty();
-void signal_serwis_otwarty();
-
-void signal_nowa_wiadomosc();
-int wait_nowa_wiadomosc(int timeout_sec);
-
-void signal_wolny_mechanik();
-int wait_wolny_mechanik();
-
 void drain_msg_queue();
 void clear_wakeup_sems();
 
 int safe_wait_seconds(double seconds);
+
+void join_service_group();
 
 #endif

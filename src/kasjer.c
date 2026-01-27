@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/msg.h>
 #include <errno.h>
+#include <stdlib.h>
 
 //Flaga ewakuacji
 volatile sig_atomic_t ewakuacja = 0;
@@ -21,7 +22,7 @@ void handle_pozar(int sig)
 int aktywni_mechanicy()
 {
     int aktywni = 0;
-    sem_lock(SEM_SHARED);
+    sem_lock(SEM_STANOWISKA);
     for (int i = 0; i < MAX_STANOWISK; i++)
     {
         if (shared->stanowiska[i].zajete)
@@ -30,7 +31,7 @@ int aktywni_mechanicy()
             break;
         }
     }
-    sem_unlock(SEM_SHARED);
+    sem_unlock(SEM_STANOWISKA);
     return aktywni;
 }
 
@@ -38,6 +39,7 @@ int main()
 {
     //Dołączanie do IPC
     init_ipc(0);
+    join_service_group();
 
     //Rejestracja handlera pożaru
     struct sigaction sa;
@@ -60,7 +62,27 @@ int main()
             ewakuacja = 0;
         }
 
-        wait_serwis_otwarty();
+        while (1)
+        {
+            int r = recv_msg(msg_id_kasjer, &msg, MSG_CTRL_OPEN_KASJER, 0);
+            if (r == 0)
+            {
+                break;
+            }
+            if (r == -2)
+            {
+                exit(0);
+            }
+
+            if (errno == EINTR && ewakuacja)
+            {
+                printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
+                snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+                zapisz_log(buffer);
+                ewakuacja = 0;
+                continue;
+            }
+        }
 
         if (ewakuacja)
         {
@@ -93,12 +115,12 @@ int main()
                 break;
             }
 
-            sem_lock(SEM_SHARED);
+            sem_lock(SEM_STATUS);
             int otwarte = shared->serwis_otwarty;
-            sem_unlock(SEM_SHARED);
+            sem_unlock(SEM_STATUS);
 
             //Obsługa płatności klientów
-            if(recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) != -1)
+            if(recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT) != -1)
             {
                 printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
                 snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
@@ -116,24 +138,23 @@ int main()
                 msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI(msg.samochod.id_pracownika);
                 msg.samochod.dodatkowa_usterka = 0;
                 
-                if(send_msg(msg_id, &msg) == -1)
+                if(send_msg(msg_id_kasjer, &msg) == -1)
                 {
                     perror("[KASJER] Błąd wysłania wiadomości");
                 }
                 else
                 {
-                    signal_nowa_wiadomosc();
                     printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
                     snprintf(buffer, sizeof(buffer), "[KASJER] Płatność zakończona dla klienta %d", msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);
 
                     //Dekrementacja liczniy aut w serwisie
-                    sem_lock(SEM_SHARED);
+                    sem_lock(SEM_LICZNIKI);
                     if (shared->auta_w_serwisie > 0)
                     {
                         shared->auta_w_serwisie--;
                     }
-                    sem_unlock(SEM_SHARED);
+                    sem_unlock(SEM_LICZNIKI);
                 }
 
                 //Przejdź do obsługi następnego klienta
@@ -158,14 +179,14 @@ int main()
             if (!otwarte)
             {
                 int auta_zostaly = 0;
-                sem_lock(SEM_SHARED);
+                sem_lock(SEM_LICZNIKI);
                 auta_zostaly = shared->auta_w_serwisie;
-                sem_unlock(SEM_SHARED);
+                sem_unlock(SEM_LICZNIKI);
 
                 if (!aktywni_mechanicy() && auta_zostaly == 0)
                 {
                     //Ostanie sprawdzenie wiadomości
-                    if (recv_msg(msg_id, &msg, MSG_KASA, IPC_NOWAIT) == -1)
+                    if (recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT) == -1)
                     {
                         printf("[KASJER] Kasa zamknięta, brak klientów\n");
                         snprintf(buffer, sizeof(buffer), "[KASJER] Kasa zamknięta o godzinie %d, brak klientów", shared->aktualna_godzina);
@@ -181,21 +202,48 @@ int main()
                 }
             }
 
-            //Czekanie na nową wiadomość
-            if (wait_nowa_wiadomosc(0) == -1)
+            //Nieblokujące oczekiwanie na płatność
+            int r = recv_msg(msg_id_kasjer, &msg, MSG_KASA, IPC_NOWAIT);
+            if (r == -2)
             {
-                if (ewakuacja)
+                exit(0);
+            }
+            if (r != -1)
+            {
+                printf("[KASJER] Klient %d płaci %d PLN\n", msg.samochod.pid_kierowcy, msg.samochod.koszt);
+                snprintf(buffer, sizeof(buffer), "[KASJER] Klient %d płaci %d PLN", msg.samochod.pid_kierowcy, msg.samochod.koszt);
+                zapisz_log(buffer);
+
+                dzienny_utarg += msg.samochod.koszt;
+
+                snprintf(buffer, sizeof(buffer), "[KASJER] Pobrano opłatę %d PLN od kierowcy %d", msg.samochod.koszt, msg.samochod.pid_kierowcy);
+                zapisz_raport(buffer);
+
+                msg.mtype = MSG_POTWIERDZENIE_PLATNOSCI(msg.samochod.id_pracownika);
+                msg.samochod.dodatkowa_usterka = 0;
+
+                if(send_msg(msg_id_kasjer, &msg) == -1)
                 {
-                    printf("[KASJER] Otrzymano sygnał pożaru! Uciekam!\n");
-                    snprintf(buffer, sizeof(buffer), "[KASJER] Otrzymano sygnał pożaru! Uciekam!");
+                    perror("[KASJER] Błąd wysłania wiadomości");
+                }
+                else
+                {
+                    printf("[KASJER] Płatność zakończona dla klienta %d\n", msg.samochod.pid_kierowcy);
+                    snprintf(buffer, sizeof(buffer), "[KASJER] Płatność zakończona dla klienta %d", msg.samochod.pid_kierowcy);
                     zapisz_log(buffer);
 
-                    snprintf(buffer, sizeof(buffer), "[KASJER] Dzień przerwany przez pożar. Zebrany utarg do momentu ewakuacji: %d PLN", dzienny_utarg);
-                    zapisz_raport(buffer);
-
-                    break;
+                    sem_lock(SEM_LICZNIKI);
+                    if (shared->auta_w_serwisie > 0)
+                    {
+                        shared->auta_w_serwisie--;
+                    }
+                    sem_unlock(SEM_LICZNIKI);
                 }
+
+                continue;
             }
+
+            safe_wait_seconds(0.2);
         }
     }
     return 0;

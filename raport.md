@@ -153,8 +153,12 @@ Sprawdzenie poprawności działania semaforów SEM_STANOWISKA przy wielu pracown
 ---
 
 * Uruchomiono 3 równoległe procesy pracownika serwisu i ustawiono generator na wysyłanie wyłącznie obsługiwanych marek.
-![screen6](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
+![screen6](/screens/2f26fea3-6fa6-4204-b540-815e82f87f0d.png)
+* Pracownicy serwisu poprawnie przypisują samochody na dane stanowiska.
+![screen7](/screens/11bf7390-a787-4dfb-aa30-cd7e09696933.png)
 
+Semafor SEM_STANOWISKA prawidłowo wpuszcza jednego pracownika serwisu, który sprawdza tablicę. Brak podwójnych przypisań. Komunikaty w kolejce nie są nadpisywane.
+**Test zaliczony**
 
 ---
 

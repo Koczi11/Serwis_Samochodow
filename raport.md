@@ -129,12 +129,12 @@ Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków praco
 ---
 
 * Generator poprawnie stworzył kierowców i zakończył działanie.
-	![screen1](/screens/e96938f4-29d9-495e-aca6-47d4ca2aa41d.png)
-	![screen2](/screens/95b26fd4-6558-43e5-adfb-f057a848e3c1.png)
+![screen1](/screens/e96938f4-29d9-495e-aca6-47d4ca2aa41d.png)
+![screen2](/screens/95b26fd4-6558-43e5-adfb-f057a848e3c1.png)
 * Pracownicy serwisu poprawnie obsługują klientów. Odsyłają 3841 kierowców z nieobsługiwaną marką.
-	![screen3](/screens/aa028589-2753-48b4-be80-f5e37b1dd791.png)
-	![screen4](/screens/d7331c5b-554d-4bd9-86c2-ce56105411b7.png)
-	![screen5](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
+![screen3](/screens/aa028589-2753-48b4-be80-f5e37b1dd791.png)
+![screen4](/screens/d7331c5b-554d-4bd9-86c2-ce56105411b7.png)
+![screen5](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
 
 	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione.
 **Test zaliczony**
@@ -149,6 +149,14 @@ Sprawdzenie poprawności działania semaforów SEM_STANOWISKA przy wielu pracown
 	* Sprawdzamy czy semafor poprawnie wpuszcza tylko jednego pracownika do funkcji znajdz_wolne_stanowisko.
 	* Sprawdzamy czy nie występuje błąd przypisania dwóch różnych aut do tego samego mechanika.
 	* Sprawdzamy czy komunikaty w kolejce nie są nadpisywane.
+
+---
+
+* Uruchomiono 3 równoległe procesy pracownika serwisu i ustawiono generator na wysyłanie wyłącznie obsługiwanych marek.
+![screen6](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
+
+
+---
 
 ### Test 3
 Sprawdzenie, czy nagłe przerwanie operacji IPC sygnałem pożaru nie zawiesza systemu.

@@ -1,5 +1,5 @@
 
-# Serwis samochodów (Temat 6)
+# Serwis samochodów
 
 **Imię:** Kacper
 **Nazwisko:** Koczera
@@ -10,7 +10,7 @@
 
 Wymagania projektu i szczegółowy opis są dostępne w pliku: https://github.com/Koczi11/Serwis_Samochodow/blob/main/README.md
 
---- 
+---
 ### Pliki i ich działanie w projekcie
 
 Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, kolejki komunikatów). Kompilacja przez Makefile.
@@ -28,25 +28,19 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 
 ### Główne procesy
 
-* **kierownik.c** - Proces nadrzędny sterujący czasem symulacji, otwieraniem i zamykaniem serwisu, losowymi zdarzeniami do mechaników oraz ewakuacją (pożar). Inicjuje IPC i czyści zasoby przy końcu pracy.
 
-* **mechanik.c** - Symuluje pracę mechaników na stanowiskach. Obsługuje naprawy, zgłasza dodatkowe usterki, reaguje na sygnały od kierownika.
+* **kierownik.c** - Proces nadrzędny sterujący czasem symulacji, otwieraniem i zamykaniem serwisu. Zarządza losowymi zdarzeniami oraz sytuacjami awaryjnymi (pożar). Inicjuje zasoby IPC i czyści je po zakończeniu symulacji. 
+* **mechanik.c** - Symuluje pracę mechanika na konkretnym stanowisku. Odbiera zlecenia naprawy, symuluje czas pracy (z uwzględnieniem przyspieszeń), losowo zgłasza dodatkowe usterki i komunikuje się z pracownikiem serwisu.
+* **pracownik_serwisu.c** - Proces obsługi klienta (recepcja). Działa w modelu hybrydowym (procesy + wątki) – dla każdego klienta tworzony jest osobny wątek, co pozwala na równoległą obsługę wielu kierowców. Dynamicznie otwiera dodatkowe "okienka" (aktywuje nieaktywne procesy) w zależności od długości kolejki oczekujących. 
+* **kasjer.c** - Obsługuje finalizację usługi. Odbiera informacje o kosztach, pobiera opłaty od kierowców, generuje raporty finansowe i loguje transakcje.
+* **kierowca.c** - Symuluje klienta. Losuje markę samochodu i rodzaj usługi. Przechodzi pełną ścieżkę: rejestracja -> oczekiwanie na wycenę -> decyzja (akceptacja/odrzucenie) -> oczekiwanie na naprawę -> decyzja o dodatkowej usterce -> płatność -> odbiór auta. 
+* **generator.c** - Proces odpowiedzialny za masowe tworzenie procesów `kierowca`. Posiada dedykowany wątek do bieżącego usuwania martwych procesów potomnych, aby nie zapchać tablicy procesów w systemie. 
+* **serwis_ipc.c / serwis_ipc.h** - Biblioteka współdzielona zawierająca definicje kluczy IPC, struktur danych, semaforów oraz funkcji pomocniczych.
 
-* **pracownik_serwisu.c** - Proces obsługi klienta. Działa wielowątkowo - każdy wątek obsługuje jednego klienta. Dynamicznie otwiera dodatkowe okienka w zależności od długości kolejki oczekujących. Przydziela samochody do wolnych mechaników.
-
-* **kasjer.c** - Obsługuje finalizację usługi, pobiera opłaty, generuje raporty finansowe i loguje transakcje.
-
-* **kierowca.c** - Symuluje klienta. Losuje markę i usługę, rejestruje się, czeka na wycenę, decyduje o naprawie lub rezygnacji, czeka na naprawę, decyduje o dodatkowych usterkach i płaci.
-
----
-
-* **generator.c** - Proces generujący wielu kierowców z limitem aktywnych dzieci. Posiada wątek zbierający procesy zombie.
-* **serwis_ipc.c / serwis_ipc.h** - wspólne definicje IPC, struktury danych, semafory, kolejki, logowanie i cennik usług.
-
----
+ ---
+ 
 ###  Z czym były problemy
-
-
+* Największym wyzwaniem było zapewnienie poprawnej synchronizacji przy **ewakuacji (pożarze)**. Sygnał `SIGUSR1` jest wysyłany do całej grupy procesów, co wymagało, aby każdy proces w dowolnym momencie potrafił przerwać działanie, zwolnić zasoby i bezpiecznie się zakończyć.
 
 ---
 ### Komunikacja między-procesowa
@@ -125,7 +119,48 @@ cos tam
 Nie wiem
 
 
-### Testy
+## Testy
+### Test 1
+Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków pracownika serwisu przy dużej liczbie odrzuceń. 
+* Ustawiamy generator na 5000 kierowców. 
+	* Sprawdzamy czy kolejka komunikatów nie ulegnie przepełnieniu, co mogłoby zablokować generator lub spowodować błędy.
+	* Sprawdzamy czy pracownicy serwisu poprawnie odsyłają komunikaty.
+
+
+---
+
+	* Generator poprawnie stowrzył kierowców i zakończył działanie.
+	![screen1](/screens/e96938f4-29d9-495e-aca6-47d4ca2aa41d.png)
+	![screen2](/screens/95b26fd4-6558-43e5-adfb-f057a848e3c1.png)
+	* Pracownicy serwisu poprawnie obsługują klientów. Odsyłają 3841 kierowców z nieobsługiwaną marką.
+	![screen3](/screens/aa028589-2753-48b4-be80-f5e37b1dd791.png)
+	![screen4](/screens/d7331c5b-554d-4bd9-86c2-ce56105411b7.png)
+	![screen5](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
+
+	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione. **Test zaliczony**
+
+
+---
+
+### Test 2
+Sprawdzenie poprawności działania semaforów SEM_STANOWISKA przy wielu pracownikach obsługi próbujących jednocześnie przedzielić zadanie.
+* Uruchamiamy proces pracownika serwisu tak, aby działały wszystkie 3 procesy.
+* Duży napływ klientów obsługiwanych marek.
+	* Sprawdzamy czy semafor poprawnie wpuszcza tylko jednego pracownika do funkcji znajdz_wolne_stanowisko.
+	* Sprawdzamy czy nie występuje błąd przypisania dwóch różnych aut do tego samego mechanika.
+	* Sprawdzamy czy komunikaty w kolejce nie są nadpisywane.
+
+### Test 3
+Sprawdzenie, czy nagłe przerwanie operacji IPC sygnałem pożaru nie zawiesza systemu.
+* Pełne obłożenie serwisu i manualne wysłanie sygnału.
+* Procesy znajdują się w różnych stanach.
+	* Sprawdzamy czy po ewakuacji symulacja działa poprawnie.
+	* Sprawdzamy czy semafory nie zostały zablokowane i czy klienci uciekający z serwisu poprawnie zwalniają miejsce w pamięci.
+
+### Test 4
+Sprawdzenie czy pojedynczy proces kasjera nie blokuję pracy serwisu.
+* Duża liczba klientów i bardzo krótkie naprawy.
+	* Sprawdzamy czy kolejka kasjera jest opróżniana na bieżąco, a transakcje są poprawnie logowane mimo dużego natężenia ruchu.
 
 
 

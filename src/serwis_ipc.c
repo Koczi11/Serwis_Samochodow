@@ -47,11 +47,26 @@ void init_ipc(int is_parent)
     {
         //Tworzenie
         shm_id = shmget(key_shm, sizeof(SharedData), IPC_CREAT | 0600);
+        if (shm_id == -1)
+        {
+            perror("shmget failed (parent)");
+            exit(1);
+        }
     }
     else
     {
         //Dołączanie
         shm_id = shmget(key_shm, sizeof(SharedData), 0600);
+        if (shm_id == -1)
+        {
+            if (errno == ENOENT || errno == EIDRM)
+            {
+                exit(0);
+            }
+
+            perror("shmget failed (child)");
+            exit(1);
+        }
     }
 
     if (shm_id == -1)
@@ -157,12 +172,22 @@ void init_ipc(int is_parent)
         sem_id = semget(key_sem, NUM_SEM, 0600);
         if (sem_id == -1)
         {
+            if (errno == ENOENT || errno == EIDRM)
+            {
+                exit(0);
+            }
+
             perror("semget failed");
             exit(1);
         }
         msg_id_kierowca = msgget(key_msg_kierowca, 0600);
         if (msg_id_kierowca == -1)
         {
+            if (errno == ENOENT || errno == EIDRM)
+            {
+                exit(0);
+            }
+
             perror("msgget kierowca failed");
             exit(1);
         }
@@ -170,6 +195,11 @@ void init_ipc(int is_parent)
         msg_id_mechanik = msgget(key_msg_mechanik, 0600);
         if (msg_id_mechanik == -1)
         {
+            if (errno == ENOENT || errno == EIDRM)
+            {
+                exit(0);
+            }
+
             perror("msgget mechanik failed");
             exit(1);
         }
@@ -177,6 +207,11 @@ void init_ipc(int is_parent)
         msg_id_kasjer = msgget(key_msg_kasjer, 0600);
         if (msg_id_kasjer == -1)
         {
+            if (errno == ENOENT || errno == EIDRM)
+            {
+                exit(0);
+            }
+            
             perror("msgget kasjer failed");
             exit(1);
         }
@@ -423,7 +458,7 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
     {
         if (errno == EIDRM || errno == EINVAL)
         {
-            return -2;
+            exit(0);
         }
 
         if (errno == EINTR)
@@ -431,11 +466,12 @@ int recv_msg(int msg_id, Msg *msg, long type, int flags)
             return -1;
         }
 
-        if (errno != ENOMSG)
+        if (errno == ENOMSG)
         {
-            perror("msgrcv failed");
+            return -1;
         }
 
+        perror("msgrcv failed");
         return -1;
     }
 
@@ -500,6 +536,11 @@ int safe_wait_seconds(double seconds)
         if (errno == EINTR)
         {
             return -1;
+        }
+
+        if (errno == EIDRM || errno == EINVAL)
+        {
+            exit(0);
         }
 
         perror("semtimedop failed");

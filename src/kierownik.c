@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/msg.h>
+#include <sys/wait.h>
 
 #define SEC_PER_H 5.0
 
@@ -51,6 +52,12 @@ static void shutdown_serwis()
     if (kill(0, SIGTERM) == -1)
     {
         perror("kill SIGTERM failed");
+    }
+
+    int status;
+    while (wait(&status) > 0)
+    {
+        //Czekamy na zakończenie wszystkich procesów potomnych
     }
 }
 

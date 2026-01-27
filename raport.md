@@ -126,17 +126,19 @@ Sprawdzenie przepustowości kolejki komunikatów oraz wydajności wątków praco
 	* Sprawdzamy czy kolejka komunikatów nie ulegnie przepełnieniu, co mogłoby zablokować generator lub spowodować błędy.
 	* Sprawdzamy czy pracownicy serwisu poprawnie odsyłają komunikaty.
 
+---
 
-	* Generator poprawnie stowrzył kierowców i zakończył działanie.
+* Generator poprawnie stworzył kierowców i zakończył działanie.
 	![screen1](/screens/e96938f4-29d9-495e-aca6-47d4ca2aa41d.png)
 	![screen2](/screens/95b26fd4-6558-43e5-adfb-f057a848e3c1.png)
-	* Pracownicy serwisu poprawnie obsługują klientów. Odsyłają 3841 kierowców z nieobsługiwaną marką.
+* Pracownicy serwisu poprawnie obsługują klientów. Odsyłają 3841 kierowców z nieobsługiwaną marką.
 	![screen3](/screens/aa028589-2753-48b4-be80-f5e37b1dd791.png)
 	![screen4](/screens/d7331c5b-554d-4bd9-86c2-ce56105411b7.png)
 	![screen5](/screens/6bbd3270-4db4-4ff2-88df-fb31e399a7d5.png)
 
 	Generator zakończył pracę pomyślnie, nie zgłaszając błędów dostępu do IPC. Wszystkie procesy potomne zostały poprawnie posprzątane przez wątek - brak procesów zombie, a kolejki komunikatów zostały całkowicie opróżnione. **Test zaliczony**
 
+---
 
 
 ### Test 2

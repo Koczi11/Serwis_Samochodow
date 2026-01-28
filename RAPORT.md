@@ -181,7 +181,7 @@ Proces kasjera bez problemu obsłużył wszystkie nadchodzące komunikaty. Kolej
 ## Linki do kluczowych fragmentów (wymagane funkcje systemowe)
 
 a. **Tworzenie i obsługa plików** (`creat()`, `open()`, `close()`, `read()`, `write()`, `unlink()`):
-* `open()`/`write()`/`close()` w logowaniu do plików: https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L338-L354
+* `open()`/`write()`/`close()` w logowaniu do plików: https://github.com/Koczi11/Serwis_Samochodow/blob/54ea80072ac0126742463793bd6b898a7187deb2/src/serwis_ipc.c#L338-L354
 
 b. **Tworzenie procesów** (`fork()`, `exec()`, `exit()`, `wait()`):
 * `fork()`/`execl()`/`exit()`/`wait()` w uruchamianiu stanowisk mechaników: https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/mechanik.c#L109-L124

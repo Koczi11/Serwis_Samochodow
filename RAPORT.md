@@ -22,7 +22,7 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 3. ./pracownik_serwisu
 4. ./mechanik
 5. ./kasjer
-6. ./generator [liczba_kierowców] [max_aktywnych]
+6. ./generator [liczba_kierowców]
 
 ---
 
@@ -95,14 +95,6 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 * **SIGINT/SIGTERM** – bezpieczne zatrzymanie symulacji przez kierownika.
 
 ---
-
-## Linki do kluczowych fragmentów
-Tutaj będą linki
-
-
-
----
-
 
 ## Testy
 ### Test 1
@@ -183,6 +175,39 @@ Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 Proces kasjera bez problemu obsłużył wszystkie nadchodzące komunikaty. Kolejka komunikatów była opróżniana na bieżąco, a wszystkie transakcje zostały poprawnie zalogowane. Nie zaobserwowano zatorów, ani oczekiwania innych procesów.
 **Test zaliczony**
 
+
+---
+
+## Linki do kluczowych fragmentów (wymagane funkcje systemowe)
+
+a. **Tworzenie i obsługa plików** (`creat()`, `open()`, `close()`, `read()`, `write()`, `unlink()`):
+* `open()`/`write()`/`close()` w logowaniu do plików: https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L338-L354
+
+b. **Tworzenie procesów** (`fork()`, `exec()`, `exit()`, `wait()`):
+* `fork()`/`execl()`/`exit()`/`wait()` w uruchamianiu stanowisk mechaników: https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/mechanik.c#L109-L124
+
+c. **Tworzenie i obsługa wątków**:
+* `pthread_create()`/`pthread_detach()` (obsługa klientów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/pracownik_serwisu.c#L594-L596
+* `pthread_create()`/`pthread_detach()`/`pthread_mutex_lock()`/`pthread_mutex_unlock()`/`pthread_cond_wait()`/`pthread_cond_broadcast()` (wątek reaper): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/generator.c#L159-L186
+
+d. **Obsługa sygnałów** (`kill()`, `raise()`, `signal()`, `sigaction()`):
+* `signal()` (ignorowanie SIGTERM/SIGINT): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L42-L47
+* `kill()` (sygnały do grup i procesów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L52-L114
+* `sigaction()` (konfiguracja obsługi sygnałów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L196-L214
+
+e. **Synchronizacja procesów (wątków)** (`ftok()`, `semget()`, `semctl()`, `semop()`):
+* `ftok()`/`semget()`/`semctl()` (inicjalizacja semaforów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L144
+* `semop()` (blokowanie/odblokowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L289-L331
+
+g. **Segmenty pamięci dzielonej** (`ftok()`, `shmget()`, `shmat()`, `shmdt()`, `shmctl()`):
+* `ftok()`/`shmget()`/`shmat()` (tworzenie i mapowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L84
+* `shmdt()`/`shmctl()` (odłączanie i usuwanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L228-L237
+
+h. **Kolejki komunikatów** (`ftok()`, `msgget()`, `msgsnd()`, `msgrcv()`, `msgctl()`):
+* `ftok()`/`msgget()` (tworzenie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L166
+* `msgsnd()`/`msgrcv()` (wysyłanie/odbieranie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L433-L455
+* `msgctl()` (usuwanie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L255-L269
+
 ---
 
 
@@ -262,4 +287,3 @@ for i in 1..N:
 	fork() -> exec kierowca
 czekaj aż wszystkie dzieci się zakończą
 ```
-

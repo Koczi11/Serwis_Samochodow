@@ -29,86 +29,77 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 ### Główne procesy
 
 
-* **kierownik.c** - Proces nadrzędny sterujący czasem symulacji, otwieraniem i zamykaniem serwisu. Zarządza losowymi zdarzeniami oraz sytuacjami awaryjnymi (pożar). Inicjuje zasoby IPC i czyści je po zakończeniu symulacji. 
-* **mechanik.c** - Symuluje pracę mechanika na konkretnym stanowisku. Odbiera zlecenia naprawy, symuluje czas pracy (z uwzględnieniem przyspieszeń), losowo zgłasza dodatkowe usterki i komunikuje się z pracownikiem serwisu.
-* **pracownik_serwisu.c** - Proces obsługi klienta (recepcja). Działa w modelu hybrydowym (procesy + wątki) – dla każdego klienta tworzony jest osobny wątek, co pozwala na równoległą obsługę wielu kierowców. Dynamicznie otwiera dodatkowe "okienka" (aktywuje nieaktywne procesy) w zależności od długości kolejki oczekujących. 
-* **kasjer.c** - Obsługuje finalizację usługi. Odbiera informacje o kosztach, pobiera opłaty od kierowców, generuje raporty finansowe i loguje transakcje.
-* **kierowca.c** - Symuluje klienta. Losuje markę samochodu i rodzaj usługi. Przechodzi pełną ścieżkę: rejestracja -> oczekiwanie na wycenę -> decyzja (akceptacja/odrzucenie) -> oczekiwanie na naprawę -> decyzja o dodatkowej usterce -> płatność -> odbiór auta. 
-* **generator.c** - Proces odpowiedzialny za masowe tworzenie procesów `kierowca`. Posiada dedykowany wątek do bieżącego usuwania martwych procesów potomnych, aby nie zapchać tablicy procesów w systemie. 
-* **serwis_ipc.c / serwis_ipc.h** - Biblioteka współdzielona zawierająca definicje kluczy IPC, struktur danych, semaforów oraz funkcji pomocniczych.
+* **kierownik.c** - Proces nadrzędny. Inicjuje IPC, prowadzi zegar symulacji, otwiera/zamyka serwis, wywołuje zdarzenia losowe (w tym pożar), a na końcu sprząta zasoby.
+* **mechanik.c** - Proces stanowiska naprawy. Odbiera zlecenia, symuluje czas pracy (może być przyspieszony), obsługuje dodatkowe usterki i reaguje na sygnały zamknięcia/ewakuacji.
+* **pracownik_serwisu.c** - 3 procesy recepcji. Każdy aktywny proces tworzy osobny wątek na obsługę kierowcy. Dodatkowe okienka są aktywowane/wyłączane zależnie od długości kolejki (progi K1/K2).
+* **kasjer.c** - Obsługuje płatności, potwierdza transakcje i zapisuje raport dzienny.
+* **kierowca.c** - Symuluje klienta: losuje markę i usługę, czeka na otwarcie (jeśli usługa krytyczna lub krótki czas oczekiwania), przechodzi wycenę, decyzje i płatność.
+* **generator.c** - Tworzy procesy `kierowca` z limitem aktywnych dzieci. Ma wątek „reaper” do sprzątania procesów potomnych; ignoruje sygnał pożaru.
+* **serwis_ipc.c / serwis_ipc.h** - Definicje IPC, struktur danych i funkcji pomocniczych (semafory, kolejki, bezpieczne oczekiwanie).
 
  ---
  
 ###  Z czym były problemy
-* Największym wyzwaniem było zapewnienie poprawnej synchronizacji przy **ewakuacji (pożarze)**. Sygnał `SIGUSR1` jest wysyłany do całej grupy procesów, co wymagało, aby każdy proces w dowolnym momencie potrafił przerwać działanie, zwolnić zasoby i bezpiecznie się zakończyć. Problem często wracał z minimalnymi zmianami w kodzie, dlatego bez dwóch zdań powodowało to najwięcej problemów
+* Najtrudniejsza była obsługa **ewakuacji (pożaru)** w trakcie blokujących operacji IPC. Sygnał `SIGUSR1` przerywa oczekiwanie, więc w wielu miejscach trzeba było obsłużyć `EINTR`, przerwać pracę i bezpiecznie wyjść.
+* Problematyczne było też niedopuszczenie do „podwójnych przydziałów” mechaników oraz spójność liczników klientów przy przełączaniu okienek.
+* W generatorze istotne było zapobieganie procesom zombie i limitowanie liczby aktywnych dzieci.
 
 ---
 ### Komunikacja między-procesowa
 
-1.  **Pamięć dzielona** (SharedData) -  globalny stan serwisu:
+1.  **Pamięć dzielona** (SharedData) - globalny stan serwisu:
 	* aktualna godzina symulacji
 	* status otwarcia
 	* informacje o pożarze i resecie po pożarze
 	* liczba aut w serwisie oraz liczba oczekujących
 	* status stanowisk mechaników
+	* PID-y procesów (kierownik, kasjer, pracownicy, generator)
 
 2.  **Kolejki komunikatów (System V Message Queues)**
-
 	* kolejka kierowców (rejestracja, decyzje, odpowiedzi)
-
 	* kolejka mechaników (zlecenia napraw i zdarzenia)
-
 	* kolejka kasjera (płatności i potwierdzenia)
+	* odpowiedzi kierowane po `mtype` zależnym od PID (uniknięcie kolizji)
 
 3.  **Semafory (System V)**
-
-	*  `SEM_SHARED` – globalna ochrona
-
-	*  `SEM_STANOWISKA` – ochrona tablicy stanowisk
-
-	*  `SEM_LICZNIKI` – ochrona liczników
-
-	*  `SEM_STATUS` – ochrona statusu serwisu
-
-	*  `SEM_TIMER` – kontrola oczekiwania z timeoutem
+	* `SEM_SHARED` – globalna ochrona awaryjna
+	* `SEM_STANOWISKA` – ochrona tablicy stanowisk
+	* `SEM_LICZNIKI` – ochrona liczników
+	* `SEM_STATUS` – ochrona statusu serwisu
+	* `SEM_TIMER` – bezpieczne oczekiwanie z timeoutem (`semtimedop`)
 
 
 ---
 ### Model synchronizacji
 
 * Pamięć dzielona chroniona semaforami binarnymi.
-
-* Kolejki komunikatów zapewniają bezpieczną wymianę danych między procesami.
-
-* Każdy kierowca identyfikowany przez PID, wykorzystywany do unikalnych `mtype` w odpowiedziach.
+* Komunikacja asynchroniczna przez kolejki z rozdzieleniem typów wiadomości na podstawie PID.
+* Częste użycie `IPC_NOWAIT` + pętle z obsługą `EINTR`, aby sygnały nie blokowały procesu.
+* Procesy dołączają do grupy kierownika, co ułatwia globalne sygnały ewakuacji.
 
 ---
 
 ### Czas
 
-* Czas symulacji aktualizowany przez kierownika w krokach co `SEC_PER_H` sekund (domyślnie 5s = 1h symulacji).
-
-* Na podstawie godziny następuje otwarcie i zamknięcie serwisu.
+* Czas symulacji aktualizowany przez kierownika co `SEC_PER_H` sekund (domyślnie 5s = 1h).
+* Dzień startuje od 6:00, otwarcie o 8:00, zamknięcie o 18:00.
+* O 5:00 następuje reset stanu po pożarze.
 
 ---
 
 ### Sygnały
 
 
-*  **SIGRTMIN** – zamknięcie stanowiska mechanika po zakończeniu bieżącej naprawy.
-
-*  **SIGRTMIN+1** – przyspieszenie pracy stanowiska o 50% (jednorazowe).
-
-*  **SIGRTMIN+2** – powrót do normalnego tempa pracy.
-
-*  **SIGUSR1** – pożar i ewakuacja wszystkich procesów.
-
-*  **SIGINT/SIGTERM** – bezpieczne zatrzymanie całej symulacji przez kierownika.
+* **SIGRTMIN** – zamknięcie stanowiska mechanika po zakończeniu bieżącej naprawy.
+* **SIGRTMIN+1** – przyspieszenie pracy stanowiska (tryb szybszy).
+* **SIGRTMIN+2** – powrót do normalnego tempa pracy.
+* **SIGUSR1** – pożar i ewakuacja procesów w grupie (generator go ignoruje).
+* **SIGINT/SIGTERM** – bezpieczne zatrzymanie symulacji przez kierownika.
 
 ---
 
 ## Linki do kluczowych fragmentów
-cos tam
+Najważniejsze pliki źródłowe są w katalogu src/.
 
 
 
@@ -189,4 +180,79 @@ Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 
 
 ## Pseudokody kluczowych procesów
+### Kierownik
+```
+init_ipc(is_parent=1)
+setpgid(0,0)
+init shared: godzina=6, serwis_otwarty=0
+while running:
+	safe_wait_seconds(SEC_PER_H)
+	godzina++ (wrap 0..23)
+	if godzina==5: reset po pożarze
+	if godzina w [8,18): otwórz serwis i wyślij MSG_CTRL_OPEN_*
+	else: zamknij serwis
+	if serwis_otwarty and los<10%:
+		losowe: SIGRTMIN / SIGRTMIN+1 / SIGRTMIN+2 / SIGUSR1
+on shutdown: SIGTERM do grupy, cleanup_ipc()
+```
+
+### Pracownik serwisu (wątek klienta)
+```
+on MSG_REJESTRACJA:
+	if marka nieobsługiwana -> odeślij negatywną wycenę
+	wyceń usługę i wyślij do kierowcy
+	czekaj na decyzję (MSG_DECYZJA_USLUGI_PID)
+	jeśli akceptacja:
+		przydziel mechanika (SEM_STANOWISKA)
+		przekazuj zdarzenia od mechanika
+		obsłuż dodatkową usterkę (MSG_DECYZJA_DODATKOWA_PID)
+		wyślij do kasjera i czekaj na potwierdzenie płatności
+		zakończ
+```
+
+### Mechanik
+```
+zarejestruj PID stanowiska
+while true:
+	czekaj na MSG_CTRL_OPEN_MECHANIK
+	reset stanowiska
+	while serwis_otwarty:
+		jeśli SIGUSR1: ewakuuj
+		jeśli SIGRTMIN: zamknij po bieżącej naprawie
+		odbierz zlecenie naprawy (mtype=100+id)
+		wykonaj_prace(czas) z uwzględnieniem przyspieszenia
+		jeśli dodatkowa usterka -> wyślij do pracownika
+		po zakończeniu -> powiadom pracownika
+```
+
+### Kasjer
+```
+zarejestruj PID
+while true:
+	czekaj na MSG_CTRL_OPEN_KASJER
+	dzienny_utarg=0
+	while serwis_otwarty lub są klienci:
+		jeśli MSG_KASA: pobierz opłatę, wyślij potwierdzenie
+		jeśli SIGUSR1: przerwij dzień
+```
+
+### Kierowca
+```
+wylosuj markę i usługę
+czekaj na otwarcie (lub odjedź jeśli nie warto czekać)
+wyślij MSG_REJESTRACJA
+odbierz wycenę i podejmij decyzję
+jeśli akceptacja: czekaj na naprawę
+obsłuż ewentualną dodatkową usterkę
+zapłać w kasie i odbierz auto
+```
+
+### Generator
+```
+uruchom wątek reaper (SIGCHLD)
+for i in 1..N:
+	jeśli aktywnych >= limit -> czekaj
+	fork() -> exec kierowca
+czekaj aż wszystkie dzieci się zakończą
+```
 

@@ -11,7 +11,7 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 
-#define SEC_PER_H 5.0
+#define SEC_PER_H 2.0
 
 //Flaga sterująca pętlą główną
 static volatile sig_atomic_t running = 1;
@@ -52,6 +52,72 @@ static void shutdown_serwis()
     if (kill(0, SIGTERM) == -1)
     {
         perror("kill SIGTERM failed");
+    }
+
+    //Dodatkowo wysyłamy SIGTERM do zarejestrowanych procesów (inne sesje)
+    {
+        pid_t kasjer_pid = -1;
+        pid_t pracownicy[LICZBA_PRACOWNIKOW];
+        pid_t generator_pgid = -1;
+        pid_t generator_pid = -1;
+
+        sem_lock(SEM_STATUS);
+        kasjer_pid = shared->pid_kasjer;
+        generator_pid = shared->pid_generator;
+        generator_pgid = shared->pgid_generator;
+        for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+        {
+            pracownicy[i] = shared->pid_pracownik[i];
+        }
+        sem_unlock(SEM_STATUS);
+
+        if (generator_pgid > 0)
+        {
+            if (kill(-generator_pgid, SIGTERM) == -1 && errno != ESRCH)
+            {
+                perror("[KIEROWNIK] Błąd wysyłania SIGTERM do generatora (PGID)");
+            }
+        }
+        else if (generator_pid > 0)
+        {
+            if (kill(generator_pid, SIGTERM) == -1 && errno != ESRCH)
+            {
+                perror("[KIEROWNIK] Błąd wysyłania SIGTERM do generatora (PID)");
+            }
+        }
+
+        if (kasjer_pid > 0)
+        {
+            if (kill(kasjer_pid, SIGTERM) == -1 && errno != ESRCH)
+            {
+                perror("[KIEROWNIK] Błąd wysyłania SIGTERM do kasjera");
+            }
+        }
+
+        for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+        {
+            if (pracownicy[i] > 0)
+            {
+                if (kill(pracownicy[i], SIGTERM) == -1 && errno != ESRCH)
+                {
+                    perror("[KIEROWNIK] Błąd wysyłania SIGTERM do pracownika");
+                }
+            }
+        }
+
+        sem_lock(SEM_STANOWISKA);
+        for (int i = 0; i < MAX_STANOWISK; i++)
+        {
+            pid_t pid = shared->stanowiska[i].pid_mechanika;
+            if (pid > 0)
+            {
+                if (kill(pid, SIGTERM) == -1 && errno != ESRCH)
+                {
+                    perror("[KIEROWNIK] Błąd wysyłania SIGTERM do mechanika");
+                }
+            }
+        }
+        sem_unlock(SEM_STANOWISKA);
     }
 
     int status;
@@ -246,6 +312,8 @@ int main()
 
                 if (!otwarty)
                 {
+                    drain_msg_queue();
+
                     printf("[KIEROWNIK] Godzina %d:00. Otwieram serwis\n", godzina);
                     snprintf(buffer, sizeof(buffer), "[KIEROWNIK] Godzina %d:00. Otwieram serwis", godzina);
                     zapisz_log(buffer);

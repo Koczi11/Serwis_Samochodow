@@ -133,6 +133,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    //Ignorujemy sygnał pożaru w generatorze (nie kończymy procesu)
+    struct sigaction sa_ign;
+    memset(&sa_ign, 0, sizeof(sa_ign));
+    sa_ign.sa_handler = SIG_IGN;
+    sigemptyset(&sa_ign.sa_mask);
+    sa_ign.sa_flags = 0;
+    if (sigaction(SIGUSR1, &sa_ign, NULL) == -1)
+    {
+        perror("sigaction SIGUSR1 ignore failed");
+    }
+
     //Blokujemy SIGCHLD w wątku głównym (obsłuży go wątek reaper)
     sigset_t set;
     sigemptyset(&set);

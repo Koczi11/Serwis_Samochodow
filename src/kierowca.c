@@ -145,13 +145,26 @@ int main()
     zapisz_log(buffer);
 
     //Wysłanie do rejestracji
-    int s = send_msg(msg_id_kierowca, &msg);
-    if (s == -2)
+    int s = 0;
+    while (1)
     {
-        return 0;
-    }
-    if (s == -1)
-    {
+        s = send_msg(msg_id_kierowca, &msg);
+        if (s == 0)
+        {
+            break;
+        }
+        if (s == -2)
+        {
+            return 0;
+        }
+        if (errno == EINTR)
+        {
+            if (ewakuacja)
+            {
+                return 0;
+            }
+            continue;
+        }
         perror("[KIEROWCA] Błąd rejestracji");
         return 1;
     }
@@ -218,13 +231,25 @@ int main()
     msg.mtype = MSG_DECYZJA_USLUGI_PID(getpid());
     msg.samochod.zaakceptowano = !rezygnacja;
 
-    s = send_msg(msg_id_kierowca, &msg);
-    if (s == -2)
+    while (1)
     {
-        return 0;
-    }
-    if (s == -1)
-    {
+        s = send_msg(msg_id_kierowca, &msg);
+        if (s == 0)
+        {
+            break;
+        }
+        if (s == -2)
+        {
+            return 0;
+        }
+        if (errno == EINTR)
+        {
+            if (ewakuacja)
+            {
+                return 0;
+            }
+            continue;
+        }
         perror("[KIEROWCA] Błąd wysłania decyzji");
         return 1;
     }
@@ -293,10 +318,27 @@ int main()
             msg.mtype = MSG_DECYZJA_DODATKOWA_PID(getpid());
             msg.samochod.zaakceptowano = !odmowa;
 
-            s = send_msg(msg_id_kierowca, &msg);
-            if (s == -2)
+            while (1)
             {
-                return 0;
+                s = send_msg(msg_id_kierowca, &msg);
+                if (s == 0)
+                {
+                    break;
+                }
+                if (s == -2)
+                {
+                    return 0;
+                }
+                if (errno == EINTR)
+                {
+                    if (ewakuacja)
+                    {
+                        return 0;
+                    }
+                    continue;
+                }
+                perror("[KIEROWCA] Błąd wysłania decyzji dodatkowej");
+                return 1;
             }
             printf("[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s\n", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
             snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Decyzja w sprawie dodatkowej usterki: %s", getpid(), odmowa ? "Odrzucam" : "Akceptuję");
@@ -308,8 +350,16 @@ int main()
         else
         {
             //Koniec naprawy
-            printf("[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam\n", getpid(), msg.samochod.koszt);
-            snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam", getpid(), msg.samochod.koszt);
+            if (msg.samochod.koszt == 0)
+            {
+                printf("[KIEROWCA %d] Serwis zamknięty/ewakuacja. Odbieram kluczyki bez rozliczenia i odjeżdżam\n", getpid());
+                snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Serwis zamknięty/ewakuacja. Odbieram kluczyki bez rozliczenia i odjeżdżam", getpid());
+            }
+            else
+            {
+                printf("[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam\n", getpid(), msg.samochod.koszt);
+                snprintf(buffer, sizeof(buffer), "[KIEROWCA %d] Zapłacono w kasie %d PLN. Odbieram kluczyki i odjeżdżam", getpid(), msg.samochod.koszt);
+            }
             zapisz_log(buffer);
             
             break;

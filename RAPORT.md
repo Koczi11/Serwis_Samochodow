@@ -184,29 +184,29 @@ a. **Tworzenie i obsługa plików** (`creat()`, `open()`, `close()`, `read()`, `
 * `open()`/`write()`/`close()` w logowaniu do plików: https://github.com/Koczi11/Serwis_Samochodow/blob/54ea80072ac0126742463793bd6b898a7187deb2/src/serwis_ipc.c#L338-L354
 
 b. **Tworzenie procesów** (`fork()`, `exec()`, `exit()`, `wait()`):
-* `fork()`/`execl()`/`exit()`/`wait()` w uruchamianiu stanowisk mechaników: https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/mechanik.c#L109-L124
+* `fork()`/`execl()`/`exit()`/`wait()` w uruchamianiu stanowisk mechaników: https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/mechanik.c#L109-L124
 
 c. **Tworzenie i obsługa wątków**:
-* `pthread_create()`/`pthread_detach()` (obsługa klientów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/pracownik_serwisu.c#L594-L596
-* `pthread_create()`/`pthread_detach()`/`pthread_mutex_lock()`/`pthread_mutex_unlock()`/`pthread_cond_wait()`/`pthread_cond_broadcast()` (wątek reaper): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/generator.c#L159-L186
+* `pthread_create()`/`pthread_detach()` (obsługa klientów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/pracownik_serwisu.c#L594-L596
+* `pthread_create()`/`pthread_detach()`/`pthread_mutex_lock()`/`pthread_mutex_unlock()`/`pthread_cond_wait()`/`pthread_cond_broadcast()` (wątek reaper): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/generator.c#L159-L186
 
 d. **Obsługa sygnałów** (`kill()`, `raise()`, `signal()`, `sigaction()`):
-* `signal()` (ignorowanie SIGTERM/SIGINT): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L42-L47
-* `kill()` (sygnały do grup i procesów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L52-L114
-* `sigaction()` (konfiguracja obsługi sygnałów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/kierownik.c#L196-L214
+* `signal()` (ignorowanie SIGTERM/SIGINT): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L42-L47
+* `kill()` (sygnały do grup i procesów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L52-L114
+* `sigaction()` (konfiguracja obsługi sygnałów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L196-L214
 
 e. **Synchronizacja procesów (wątków)** (`ftok()`, `semget()`, `semctl()`, `semop()`):
-* `ftok()`/`semget()`/`semctl()` (inicjalizacja semaforów): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L144
-* `semop()` (blokowanie/odblokowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L289-L331
+* `ftok()`/`semget()`/`semctl()` (inicjalizacja semaforów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L144
+* `semop()` (blokowanie/odblokowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L289-L331
 
 g. **Segmenty pamięci dzielonej** (`ftok()`, `shmget()`, `shmat()`, `shmdt()`, `shmctl()`):
-* `ftok()`/`shmget()`/`shmat()` (tworzenie i mapowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L84
-* `shmdt()`/`shmctl()` (odłączanie i usuwanie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L228-L237
+* `ftok()`/`shmget()`/`shmat()` (tworzenie i mapowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L84
+* `shmdt()`/`shmctl()` (odłączanie i usuwanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L228-L237
 
 h. **Kolejki komunikatów** (`ftok()`, `msgget()`, `msgsnd()`, `msgrcv()`, `msgctl()`):
-* `ftok()`/`msgget()` (tworzenie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L33-L166
-* `msgsnd()`/`msgrcv()` (wysyłanie/odbieranie): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L433-L455
-* `msgctl()` (usuwanie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/main/src/serwis_ipc.c#L255-L269
+* `ftok()`/`msgget()` (tworzenie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L166
+* `msgsnd()`/`msgrcv()` (wysyłanie/odbieranie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L433-L455
+* `msgctl()` (usuwanie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L255-L269
 
 ---
 

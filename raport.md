@@ -40,7 +40,7 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
  ---
  
 ###  Z czym były problemy
-* Największym wyzwaniem było zapewnienie poprawnej synchronizacji przy **ewakuacji (pożarze)**. Sygnał `SIGUSR1` jest wysyłany do całej grupy procesów, co wymagało, aby każdy proces w dowolnym momencie potrafił przerwać działanie, zwolnić zasoby i bezpiecznie się zakończyć.
+* Największym wyzwaniem było zapewnienie poprawnej synchronizacji przy **ewakuacji (pożarze)**. Sygnał `SIGUSR1` jest wysyłany do całej grupy procesów, co wymagało, aby każdy proces w dowolnym momencie potrafił przerwać działanie, zwolnić zasoby i bezpiecznie się zakończyć. Problem często wracał z minimalnymi zmianami w kodzie, dlatego bez dwóch zdań powodowało to najwięcej problemów
 
 ---
 ### Komunikacja między-procesowa
@@ -114,10 +114,6 @@ cos tam
 
 ---
 
-### wyróżniające elementy:
-
-Nie wiem
-
 
 ## Testy
 ### Test 1
@@ -170,7 +166,7 @@ Sprawdzenie, czy nagłe przerwanie operacji IPC sygnałem pożaru nie zawiesza s
 	* Sprawdzamy czy semafory nie zostały zablokowane i czy klienci uciekający z serwisu poprawnie zwalniają miejsce w pamięci.
 
 ### Test 4
-Sprawdzenie czy pojedynczy proces kasjera nie blokuję pracy serwisu.
+Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 * Duża liczba klientów i bardzo krótkie naprawy.
 	* Sprawdzamy czy kolejka kasjera jest opróżniana na bieżąco, a transakcje są poprawnie logowane mimo dużego natężenia ruchu.
 
@@ -179,107 +175,3 @@ Sprawdzenie czy pojedynczy proces kasjera nie blokuję pracy serwisu.
 
 ## Pseudokody kluczowych procesów
 
-
-### kierownik.c
-
-```
-
-init_ipc()
-
-setpgid()
-
-while running:
-
-wait(SEC_PER_H)
-
-aktualizuj_godzine()
-
-if pozar: serwis_otwarty = 0
-
-if w_oknie_godzin: otworz_serwis()
-
-else: zamknij_serwis()
-
-losowo wyslij sygnaly do mechanikow
-
-if shutdown:
-
-wyslij SIGTERM do grupy
-
-cleanup_ipc()
-
-```
-
-  
-
-### pracownik_serwisu.c
-
-```
-
-while serwis dziala:
-
-czekaj_na_otwarcie
-
-zarzadzaj_liczba_okienek(K1, K2)
-
-odbierz zgloszenia kierowcow
-
-wycen usluge i odeślij
-
-pobierz decyzje kierowcy
-
-przydziel wolnego mechanika
-
-obsluz dodatkowe usterki
-
-po zakonczeniu naprawy -> kasa
-
-```
-
-  
-
-### mechanik.c
-
-```
-
-czekaj_na_otwarcie
-
-while serwis otwarty:
-
-if zamknij_po: zakoncz i wyjdz
-
-odbierz zlecenie
-
-napraw (z przyspieszeniem jesli aktywne)
-
-losowo zglos dodatkowa usterke
-
-po zakonczeniu -> powiadom pracownika
-
-```
-
-  
-
-### kierowca.c
-
-```
-
-losuj marke i usluge
-
-czekaj_na_otwarcie (jesli krytyczna lub krotki czas)
-
-wyslij rejestracje
-
-odbierz wycene
-
-zaakceptuj lub odrzuc
-
-czekaj na zakonczenie naprawy
-
-jesli dodatkowa usterka -> decyzja
-
-po platnosci odbierz kluczyki
-
-```
-
-  ---

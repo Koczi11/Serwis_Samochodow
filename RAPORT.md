@@ -10,6 +10,7 @@
 
 Wymagania projektu i szczegółowy opis są dostępne w pliku: https://github.com/Koczi11/Serwis_Samochodow/blob/main/README.md
 
+---
 
 ## Pliki i ich działanie w projekcie
 

@@ -11,7 +11,7 @@
 #include <sys/msg.h>
 #include <sys/wait.h>
 
-#define SEC_PER_H 2.0
+#define SEC_PER_H 5.0
 
 //Flaga sterująca pętlą główną
 static volatile sig_atomic_t running = 1;
@@ -395,7 +395,7 @@ int main()
             sem_unlock(SEM_STANOWISKA);
 
             //10% szansy na zdarzenie
-            int los = rand () % 10;
+            int los = rand () % 100;
             if (pid > 0 && los < 10)
             {
                 int akcja = rand() % 4;

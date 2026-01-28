@@ -165,6 +165,21 @@ Sprawdzenie, czy nagłe przerwanie operacji IPC sygnałem pożaru nie zawiesza s
 	* Sprawdzamy czy po ewakuacji symulacja działa poprawnie.
 	* Sprawdzamy czy semafory nie zostały zablokowane i czy klienci uciekający z serwisu poprawnie zwalniają miejsce w pamięci.
 
+---
+* W trakcie działania symulacji kierownik wysyła syngał pożaru. Procesy poprawnie go obsługują, uciekają z serwisu.
+![screen8](/screens/be9c515f-da17-460b-a8ac-5712cf61a503.png)
+![screen9](/screens/160a731e-a4b8-40d4-a67e-f71f7fdf2e5c.png)
+![screen10](/screens/176736e7-f03c-4501-b074-8b16e672becb.png)
+![screen11](/screens/fb45d695-09a0-4b7f-9046-c0ea7a250f1f.png)
+![screen12](/screens/e36f785a-84a5-4b5a-bb6b-be2a889695cd.png)
+
+* Symulacja prawidłowo resetuje stan pożaru o 5:00. Dzięki temu o 8:00 serwis wznawia swoją pracę.
+![screen13](/screens/6bd40d1a-bd2f-4ee1-a2e1-76dfd31cce3d.png)
+
+System wykazał pełną odporność na nagłe przerwanie sygnałem. Nie wystąpiły zakleszczenia, a pamięć współdzielona została poprawnie przywrócona do spójności.
+**Test zaliczony**
+
+---
 ### Test 4
 Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 * Duża liczba klientów i bardzo krótkie naprawy.

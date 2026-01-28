@@ -185,7 +185,16 @@ Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 * Duża liczba klientów i bardzo krótkie naprawy.
 	* Sprawdzamy czy kolejka kasjera jest opróżniana na bieżąco, a transakcje są poprawnie logowane mimo dużego natężenia ruchu.
 
+---
+* Wszystkie naprawy mechanika zostały drastycznie przyspieszone w celu przeprowadzenia testu.
+![screen14](/screens/68e8305d-9344-4adc-a7ed-81967e390c06.png)
+![screen15](/screens/cf2914a8-cf4c-462b-bcfc-10c1f0ee860a.png)
+![screen16](/screens/d5caba20-a085-4714-aabd-6d81053f1f87.png)
 
+Proces kasjera bez problemu obsłużył wszystkie nadchodzące komunikaty. Kolejka komunikatów była opróżniana na bieżąco, a wszystkie transakcje zostały poprawnie zalogowane. Nie zaobserwowano zatorów, ani oczekiwania innych procesów.
+**Test zaliczony**
+
+---
 
 
 ## Pseudokody kluczowych procesów

@@ -34,15 +34,14 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 * **pracownik_serwisu.c** - 3 procesy recepcji. Każdy aktywny proces tworzy osobny wątek na obsługę kierowcy. Dodatkowe okienka są aktywowane/wyłączane zależnie od długości kolejki (progi K1/K2).
 * **kasjer.c** - Obsługuje płatności, potwierdza transakcje i zapisuje raport dzienny.
 * **kierowca.c** - Symuluje klienta: losuje markę i usługę, czeka na otwarcie (jeśli usługa krytyczna lub krótki czas oczekiwania), przechodzi wycenę, decyzje i płatność.
-* **generator.c** - Tworzy procesy `kierowca` z limitem aktywnych dzieci. Ma wątek „reaper” do sprzątania procesów potomnych; ignoruje sygnał pożaru.
+* **generator.c** - Tworzy procesy `kierowca`. Ma wątek „reaper” do sprzątania procesów potomnych.
 * **serwis_ipc.c / serwis_ipc.h** - Definicje IPC, struktur danych i funkcji pomocniczych (semafory, kolejki, bezpieczne oczekiwanie).
 
  ---
  
-###  Z czym były problemy
-* Najtrudniejsza była obsługa **ewakuacji (pożaru)** w trakcie blokujących operacji IPC. Sygnał `SIGUSR1` przerywa oczekiwanie, więc w wielu miejscach trzeba było obsłużyć `EINTR`, przerwać pracę i bezpiecznie wyjść.
-* Problematyczne było też niedopuszczenie do „podwójnych przydziałów” mechaników oraz spójność liczników klientów przy przełączaniu okienek.
-* W generatorze istotne było zapobieganie procesom zombie i limitowanie liczby aktywnych dzieci.
+###  Z czym były problemy?
+* Najtrudniejsza była obsługa **ewakuacji (pożaru)**. Z każdą zmianą w kodzie system działania pożaru miał nowe problemy, które trzeba było naprawiać. Myślę, że 70% czasu spędzonego nad projektem przeznaczyłem na obsługę tego sygnału.
+* Kolejnym problemem był błąd jaki popełniłem. czyli synchronizowanie projektu za pomocą sleep()/usleep(). Po ciężkiej przebudowie w kodzie udało się go wyeliminować.
 
 ---
 ### Komunikacja między-procesowa
@@ -83,7 +82,6 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 
 * Czas symulacji aktualizowany przez kierownika co `SEC_PER_H` sekund (domyślnie 5s = 1h).
 * Dzień startuje od 6:00, otwarcie o 8:00, zamknięcie o 18:00.
-* O 5:00 następuje reset stanu po pożarze.
 
 ---
 
@@ -99,7 +97,7 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 ---
 
 ## Linki do kluczowych fragmentów
-Najważniejsze pliki źródłowe są w katalogu src/.
+Tutaj będą linki
 
 
 

@@ -34,7 +34,7 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 * **pracownik_serwisu.c** - 3 procesy recepcji. Każdy aktywny proces tworzy osobny wątek na obsługę kierowcy. Dodatkowe okienka są aktywowane/wyłączane zależnie od długości kolejki (progi K1/K2).
 * **kasjer.c** - Obsługuje płatności, potwierdza transakcje i zapisuje raport dzienny.
 * **kierowca.c** - Symuluje klienta: losuje markę i usługę, czeka na otwarcie (jeśli usługa krytyczna lub krótki czas oczekiwania), przechodzi wycenę, decyzje i płatność.
-* **generator.c** - Tworzy procesy `kierowca`. Ma wątek „reaper” do sprzątania procesów potomnych.
+* **generator.c** - Tworzy procesy `kierowca`. Ma wątek do sprzątania procesów potomnych.
 * **serwis_ipc.c / serwis_ipc.h** - Definicje IPC, struktur danych i funkcji pomocniczych (semafory, kolejki, bezpieczne oczekiwanie).
 
  
@@ -170,30 +170,30 @@ Proces kasjera bez problemu obsłużył wszystkie nadchodzące komunikaty. Kolej
 
 ## Linki do kluczowych fragmentów (wymagane funkcje systemowe)
 
-a. **Tworzenie i obsługa plików** (`creat()`, `open()`, `close()`, `read()`, `write()`, `unlink()`):
+a. **Tworzenie i obsługa plików**:
 * `open()`/`write()`/`close()` w logowaniu do plików: https://github.com/Koczi11/Serwis_Samochodow/blob/54ea80072ac0126742463793bd6b898a7187deb2/src/serwis_ipc.c#L338-L354
 
-b. **Tworzenie procesów** (`fork()`, `exec()`, `exit()`, `wait()`):
+b. **Tworzenie procesów**:
 * `fork()`/`execl()`/`exit()`/`wait()` w uruchamianiu stanowisk mechaników: https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/mechanik.c#L109-L124
 
 c. **Tworzenie i obsługa wątków**:
 * `pthread_create()`/`pthread_detach()` (obsługa klientów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/pracownik_serwisu.c#L594-L596
 * `pthread_create()`/`pthread_detach()`/`pthread_mutex_lock()`/`pthread_mutex_unlock()`/`pthread_cond_wait()`/`pthread_cond_broadcast()` (wątek reaper): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/generator.c#L159-L186
 
-d. **Obsługa sygnałów** (`kill()`, `raise()`, `signal()`, `sigaction()`):
+d. **Obsługa sygnałów**:
 * `signal()` (ignorowanie SIGTERM/SIGINT): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L42-L47
 * `kill()` (sygnały do grup i procesów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L52-L114
 * `sigaction()` (konfiguracja obsługi sygnałów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/kierownik.c#L196-L214
 
-e. **Synchronizacja procesów (wątków)** (`ftok()`, `semget()`, `semctl()`, `semop()`):
+e. **Synchronizacja procesów (wątków)**:
 * `ftok()`/`semget()`/`semctl()` (inicjalizacja semaforów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L144
 * `semop()` (blokowanie/odblokowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L289-L331
 
-f. **Segmenty pamięci dzielonej** (`ftok()`, `shmget()`, `shmat()`, `shmdt()`, `shmctl()`):
+f. **Segmenty pamięci dzielonej**:
 * `ftok()`/`shmget()`/`shmat()` (tworzenie i mapowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L84
 * `shmdt()`/`shmctl()` (odłączanie i usuwanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L228-L237
 
-g. **Kolejki komunikatów** (`ftok()`, `msgget()`, `msgsnd()`, `msgrcv()`, `msgctl()`):
+g. **Kolejki komunikatów**:
 * `ftok()`/`msgget()` (tworzenie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L166
 * `msgsnd()`/`msgrcv()` (wysyłanie/odbieranie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L433-L455
 * `msgctl()` (usuwanie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L255-L269

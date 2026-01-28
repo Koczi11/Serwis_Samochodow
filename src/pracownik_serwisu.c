@@ -413,6 +413,11 @@ int main(int argc, char *argv[])
     init_ipc(0);
     join_service_group();
 
+    //Rejestracja PID pracownika
+    sem_lock(SEM_STATUS);
+    shared->pid_pracownik[id_pracownika] = getpid();
+    sem_unlock(SEM_STATUS);
+
     //Rejestracja handlera pożaru
     struct sigaction sa;
     sa.sa_handler = handle_pozar;
@@ -438,6 +443,9 @@ int main(int argc, char *argv[])
     {
         if (ewakuacja)
         {
+            printf("[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!\n", id_pracownika);
+            snprintf(buffer, sizeof(buffer), "[PRACOWNIK SERWISU %d] Otrzymano sygnał pożaru! Uciekam!", id_pracownika);
+            zapisz_log(buffer);
             ewakuacja = 0;
         }
 

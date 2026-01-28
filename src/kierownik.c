@@ -61,6 +61,72 @@ static void shutdown_serwis()
     }
 }
 
+static void wyslij_pozar_do_zarejestrowanych(void)
+{
+    pid_t kasjer_pid = -1;
+    pid_t pracownicy[LICZBA_PRACOWNIKOW];
+    pid_t generator_pgid = -1;
+    pid_t generator_pid = -1;
+
+    sem_lock(SEM_STATUS);
+    kasjer_pid = shared->pid_kasjer;
+    generator_pid = shared->pid_generator;
+    generator_pgid = shared->pgid_generator;
+    for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+    {
+        pracownicy[i] = shared->pid_pracownik[i];
+    }
+    sem_unlock(SEM_STATUS);
+
+    if (generator_pgid > 0)
+    {
+        if (kill(-generator_pgid, SIGUSR1) == -1 && errno != ESRCH)
+        {
+            perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru do generatora (PGID)");
+        }
+    }
+    else if (generator_pid > 0)
+    {
+        if (kill(generator_pid, SIGUSR1) == -1 && errno != ESRCH)
+        {
+            perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru do generatora (PID)");
+        }
+    }
+
+    if (kasjer_pid > 0)
+    {
+        if (kill(kasjer_pid, SIGUSR1) == -1 && errno != ESRCH)
+        {
+            perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru do kasjera");
+        }
+    }
+
+    for (int i = 0; i < LICZBA_PRACOWNIKOW; i++)
+    {
+        if (pracownicy[i] > 0)
+        {
+            if (kill(pracownicy[i], SIGUSR1) == -1 && errno != ESRCH)
+            {
+                perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru do pracownika");
+            }
+        }
+    }
+
+    sem_lock(SEM_STANOWISKA);
+    for (int i = 0; i < MAX_STANOWISK; i++)
+    {
+        pid_t pid = shared->stanowiska[i].pid_mechanika;
+        if (pid > 0)
+        {
+            if (kill(pid, SIGUSR1) == -1 && errno != ESRCH)
+            {
+                perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru do mechanika");
+            }
+        }
+    }
+    sem_unlock(SEM_STANOWISKA);
+}
+
 int main()
 {
     //Konfiguracja obsługi sygnałów (bez SA_RESTART)
@@ -261,7 +327,7 @@ int main()
             sem_unlock(SEM_STANOWISKA);
 
             //10% szansy na zdarzenie
-            int los = rand () % 100;
+            int los = rand () % 10;
             if (pid > 0 && los < 10)
             {
                 int akcja = rand() % 4;
@@ -321,6 +387,8 @@ int main()
                         {
                             perror("[KIEROWNIK] Błąd wysyłania sygnału pożaru");
                         }
+
+                        wyslij_pozar_do_zarejestrowanych();
                         break;
                 }
             }

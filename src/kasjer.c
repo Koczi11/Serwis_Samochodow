@@ -50,6 +50,11 @@ int main()
     init_ipc(0);
     join_service_group();
 
+    //Rejestracja PID kasjera
+    sem_lock(SEM_STATUS);
+    shared->pid_kasjer = getpid();
+    sem_unlock(SEM_STATUS);
+
     //Rejestracja handlera pożaru
     struct sigaction sa;
     sa.sa_handler = handle_pozar;

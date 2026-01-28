@@ -111,6 +111,10 @@ typedef struct
     int aktywne_okienka_obslugi;
     int auta_w_serwisie;
     pid_t pid_kierownik;
+    pid_t pid_kasjer;
+    pid_t pid_pracownik[LICZBA_PRACOWNIKOW];
+    pid_t pid_generator;
+    pid_t pgid_generator;
 } SharedData;
 
 //Komunikat w kolejce 

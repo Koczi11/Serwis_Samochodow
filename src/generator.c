@@ -103,6 +103,20 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (ipc_available())
+    {
+        init_ipc(0);
+        if (setpgid(0, 0) == -1)
+        {
+            perror("setpgid generator failed");
+        }
+
+        sem_lock(SEM_STATUS);
+        shared->pid_generator = getpid();
+        shared->pgid_generator = getpgrp();
+        sem_unlock(SEM_STATUS);
+    }
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_sigterm;

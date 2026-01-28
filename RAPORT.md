@@ -10,8 +10,8 @@
 
 Wymagania projektu i szczegółowy opis są dostępne w pliku: https://github.com/Koczi11/Serwis_Samochodow/blob/main/README.md
 
----
-### Pliki i ich działanie w projekcie
+
+## Pliki i ich działanie w projekcie
 
 Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, kolejki komunikatów). Kompilacja przez Makefile.
 
@@ -24,9 +24,8 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 5. ./kasjer
 6. ./generator [liczba_kierowców]
 
----
 
-### Główne procesy
+## Główne procesy
 
 
 * **kierownik.c** - Proces nadrzędny. Inicjuje IPC, prowadzi zegar symulacji, otwiera/zamyka serwis, wywołuje zdarzenia losowe (w tym pożar), a na końcu sprząta zasoby.
@@ -37,14 +36,12 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 * **generator.c** - Tworzy procesy `kierowca`. Ma wątek „reaper” do sprzątania procesów potomnych.
 * **serwis_ipc.c / serwis_ipc.h** - Definicje IPC, struktur danych i funkcji pomocniczych (semafory, kolejki, bezpieczne oczekiwanie).
 
- ---
  
-###  Z czym były problemy?
+##  Z czym były problemy?
 * Najtrudniejsza była obsługa **ewakuacji (pożaru)**. Z każdą zmianą w kodzie system działania pożaru miał nowe problemy, które trzeba było naprawiać. Myślę, że 70% czasu spędzonego nad projektem przeznaczyłem na obsługę tego sygnału.
 * Kolejnym problemem był błąd jaki popełniłem. czyli synchronizowanie projektu za pomocą sleep()/usleep(). Po ciężkiej przebudowie w kodzie udało się go wyeliminować.
 
----
-### Komunikacja między-procesowa
+## Komunikacja między-procesowa
 
 1.  **Pamięć dzielona** (SharedData) - globalny stan serwisu:
 	* aktualna godzina symulacji
@@ -67,25 +64,19 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 	* `SEM_STATUS` – ochrona statusu serwisu
 	* `SEM_TIMER` – bezpieczne oczekiwanie z timeoutem (`semtimedop`)
 
-
----
-### Model synchronizacji
+## Model synchronizacji
 
 * Pamięć dzielona chroniona semaforami binarnymi.
 * Komunikacja asynchroniczna przez kolejki z rozdzieleniem typów wiadomości na podstawie PID.
 * Częste użycie `IPC_NOWAIT` + pętle z obsługą `EINTR`, aby sygnały nie blokowały procesu.
 * Procesy dołączają do grupy kierownika, co ułatwia globalne sygnały ewakuacji.
 
----
-
-### Czas
+## Czas
 
 * Czas symulacji aktualizowany przez kierownika co `SEC_PER_H` sekund (domyślnie 5s = 1h).
 * Dzień startuje od 6:00, otwarcie o 8:00, zamknięcie o 18:00.
 
----
-
-### Sygnały
+## Sygnały
 
 
 * **SIGRTMIN** – zamknięcie stanowiska mechanika po zakończeniu bieżącej naprawy.
@@ -94,7 +85,6 @@ Projekt zrealizowano w C z użyciem System V IPC (pamięć dzielona, semafory, k
 * **SIGUSR1** – pożar i ewakuacja procesów w grupie (generator go ignoruje).
 * **SIGINT/SIGTERM** – bezpieczne zatrzymanie symulacji przez kierownika.
 
----
 
 ## Testy
 ### Test 1
@@ -175,7 +165,6 @@ Sprawdzenie czy pojedynczy proces kasjera nie blokuje pracy serwisu.
 Proces kasjera bez problemu obsłużył wszystkie nadchodzące komunikaty. Kolejka komunikatów była opróżniana na bieżąco, a wszystkie transakcje zostały poprawnie zalogowane. Nie zaobserwowano zatorów, ani oczekiwania innych procesów.
 **Test zaliczony**
 
-
 ---
 
 ## Linki do kluczowych fragmentów (wymagane funkcje systemowe)
@@ -199,16 +188,15 @@ e. **Synchronizacja procesów (wątków)** (`ftok()`, `semget()`, `semctl()`, `s
 * `ftok()`/`semget()`/`semctl()` (inicjalizacja semaforów): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L144
 * `semop()` (blokowanie/odblokowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L289-L331
 
-g. **Segmenty pamięci dzielonej** (`ftok()`, `shmget()`, `shmat()`, `shmdt()`, `shmctl()`):
+f. **Segmenty pamięci dzielonej** (`ftok()`, `shmget()`, `shmat()`, `shmdt()`, `shmctl()`):
 * `ftok()`/`shmget()`/`shmat()` (tworzenie i mapowanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L84
 * `shmdt()`/`shmctl()` (odłączanie i usuwanie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L228-L237
 
-h. **Kolejki komunikatów** (`ftok()`, `msgget()`, `msgsnd()`, `msgrcv()`, `msgctl()`):
+g. **Kolejki komunikatów** (`ftok()`, `msgget()`, `msgsnd()`, `msgrcv()`, `msgctl()`):
 * `ftok()`/`msgget()` (tworzenie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L33-L166
 * `msgsnd()`/`msgrcv()` (wysyłanie/odbieranie): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L433-L455
 * `msgctl()` (usuwanie kolejek): https://github.com/Koczi11/Serwis_Samochodow/blob/145f9dab752f9718855f523d3cc155a56bd47d7a/src/serwis_ipc.c#L255-L269
 
----
 
 
 ## Pseudokody kluczowych procesów

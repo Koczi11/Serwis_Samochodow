@@ -47,6 +47,10 @@ Sygnały kierownika serwisu:
 
 # Car Service
 
+**Name:** Kacper
+**Surname:** Koczera
+**GitHub:** https://github.com/Koczi11/Serwis_Samochodow
+
 ## Task Description
 
 In a certain town, there is a car service center open $\text{from } T_p \text{ to } T_k$. The service center exclusively handles cars of the following brands: A, E, I, O, U and Y. The remaining brands – from the A to Z range (26 different brands in total) – are not serviced. The service center has 8 repair bays. Repair bays 1-7 can service brands A, E, I, O, U and Y, while repair bay 8 is strictly reserved for servicing only brands U and Y.
